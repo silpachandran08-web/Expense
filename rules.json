@@ -1,0 +1,16 @@
+{
+  "Food": ["swiggy", "zomato", "dominos", "mcdonald", "kfc", "starbucks", "restaurant", "cafe", "eatsure"],
+  "Groceries": ["bigbasket", "blinkit", "zepto", "dmart", "instamart", "jiomart", "grocer", "supermarket"],
+  "Shopping": ["amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon"],
+  "Transport": ["uber", "ola", "rapido", "irctc", "metro", "fastag", "petrol", "fuel", "hpcl", "bpcl", "indian oil", "iocl", "shell"],
+  "Travel": ["makemytrip", "goibibo", "indigo", "air india", "vistara", "akasa", "cleartrip", "redbus", "oyo", "booking.com", "airbnb"],
+  "Bills & Utilities": ["electricity", "bescom", "tneb", "msedcl", "airtel", "jio", "vodafone", "bsnl", "act fibernet", "broadband", "gas", "water", "dth", "tata play", "recharge"],
+  "Subscriptions": ["netflix", "spotify", "hotstar", "prime video", "youtube", "google play", "apple.com", "icloud", "zee5", "sonyliv"],
+  "Health": ["pharmacy", "apollo", "medplus", "pharmeasy", "1mg", "netmeds", "hospital", "clinic", "diagnostic"],
+  "Entertainment": ["bookmyshow", "pvr", "inox", "district"],
+  "Rent & EMI": ["rent", "emi", "loan", "nobroker"],
+  "Investments": ["zerodha", "groww", "upstox", "mutual fund", "sip", "nps", "ppf"],
+  "Insurance": ["insurance", "lic", "policybazaar"],
+  "Cash": ["atm", "cash withdrawal", "withdrawn"],
+  "Salary": ["salary"]
+}

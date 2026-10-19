@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Expenses</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg: #f7f7f8; --card: #fff; --text: #1d1d1f; --muted: #6b6b70; --line: #e4e4e7; --debit: #c2410c; --credit: #15803d; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111113; --card: #1c1c1f; --text: #ececee; --muted: #9a9aa1; --line: #2e2e33; --debit: #fb923c; --credit: #4ade80; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; display: grid; gap: 16px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .kpi { font-size: 26px; font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .debit { color: var(--debit); } .credit { color: var(--credit); }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .scroll { overflow-x: auto; }
+  select { font: inherit; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Expenses</h1><select id="month" aria-label="Month"></select></header>
+  <div class="grid">
+    <div class="card"><div class="muted">Spent</div><div class="kpi debit" id="spent">–</div></div>
+    <div class="card"><div class="muted">Received</div><div class="kpi credit" id="received">–</div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h3>By category</h3><canvas id="cat" aria-label="Spending by category"></canvas></div>
+    <div class="card"><h3>Monthly trend</h3><canvas id="trend" aria-label="Spent and received per month"></canvas></div>
+  </div>
+  <div class="card"><h3>Top merchants</h3><table id="merchants"></table></div>
+  <div class="card scroll"><h3>Transactions</h3><table id="txns"></table></div>
+</main>
+<script>
+const inr = n => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const charts = {};
+const draw = (id, config) => { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), config); };
+
+async function load(month) {
+  const q = month ? '?month=' + month : '';
+  const [s, txns] = await Promise.all([
+    fetch('/api/summary' + q).then(r => r.json()),
+    fetch('/api/transactions?month=' + (month || '')).then(r => r.json()),
+  ]);
+  const sel = document.getElementById('month');
+  sel.innerHTML = s.months.slice().reverse().map(m => `<option ${m.month === s.month ? 'selected' : ''}>${m.month}</option>`).join('');
+  const cur = s.months.find(m => m.month === s.month) || { spent: 0, received: 0 };
+  document.getElementById('spent').textContent = inr(cur.spent);
+  document.getElementById('received').textContent = inr(cur.received);
+
+  draw('cat', { type: 'doughnut', data: { labels: Object.keys(s.by_category), datasets: [{ data: Object.values(s.by_category) }] },
+    options: { aspectRatio: 1.5, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.label}: ${inr(c.raw)}` } } } } });
+  draw('trend', { type: 'bar', data: { labels: s.months.map(m => m.month), datasets: [
+    { label: 'Spent', data: s.months.map(m => m.spent), backgroundColor: getComputedStyle(document.body).getPropertyValue('--debit') },
+    { label: 'Received', data: s.months.map(m => m.received), backgroundColor: getComputedStyle(document.body).getPropertyValue('--credit') },
+  ] }, options: { plugins: { legend: { position: 'bottom' } } } });
+
+  document.getElementById('merchants').innerHTML = Object.entries(s.top_merchants)
+    .map(([m, v]) => `<tr><td>${esc(m)}</td><td class="num">${inr(v)}</td></tr>`).join('') || '<tr><td class="muted">No spending yet</td></tr>';
+  const rows = month ? txns : txns.filter(t => t.received_at.startsWith(s.month));
+  document.getElementById('txns').innerHTML = '<tr><th>Date</th><th>Merchant</th><th>Category</th><th class="num">Amount</th></tr>' +
+    rows.map(t => `<tr title="${esc(t.body)}"><td>${esc(t.received_at.slice(0, 10))}</td><td>${esc(t.merchant || '(unknown)')}</td>` +
+      `<td>${esc(t.category)}</td><td class="num ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${inr(t.amount)}</td></tr>`).join('');
+}
+
+document.getElementById('month').addEventListener('change', e => load(e.target.value));
+load();
+</script>
+</body>
+</html>
