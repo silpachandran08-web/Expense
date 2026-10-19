@@ -96,8 +96,8 @@ def transactions(db, month=None, currency=None):
 def summary(db, month=None, currency=None):
     every = transactions(db)
     currencies = sorted({t['currency'] for t in every})
-    # INR and SAR are never added together; default to the currency of the latest transaction.
-    currency = currency or (every[0]['currency'] if every else 'INR')
+    # INR and SAR are never added together; SAR is the main account, so it is shown first.
+    currency = currency or ('SAR' if 'SAR' in currencies or not every else every[0]['currency'])
     rows = [t for t in every if t['currency'] == currency]
 
     months = defaultdict(lambda: {'spent': 0, 'received': 0})
@@ -150,7 +150,7 @@ def read_sms(environ):
     sender, body = str(msg['sender']).strip(), str(msg['body']).strip()
     received_at = str(msg.get('received_at') or '').strip()
     if received_at.isdigit():  # epoch milliseconds from the phone; shown in EXPENSE_TZ so months split at local midnight
-        when = datetime.fromtimestamp(int(received_at) / 1000, ZoneInfo(os.environ.get('EXPENSE_TZ') or 'UTC'))
+        when = datetime.fromtimestamp(int(received_at) / 1000, ZoneInfo(os.environ.get('EXPENSE_TZ') or 'Asia/Riyadh'))
         received_at = when.isoformat(timespec='seconds')
     received_at = received_at or datetime.now(timezone.utc).isoformat(timespec='seconds')
     datetime.fromisoformat(received_at)  # reject junk dates; they would break month grouping

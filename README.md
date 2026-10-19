@@ -1,6 +1,6 @@
 # Expense
 
-Tracks your spending automatically from bank SMS. It reads UPI and card SMS from Indian banks (INR) and SMS from Saudi banks in English or Arabic (SAR).
+Tracks your spending automatically from bank SMS. It's built mainly for Saudi bank SMS (SAR, English or Arabic), and also reads UPI and card SMS from Indian banks (INR).
 
 ```
 Samsung phone ──new bank SMS──▶ "SMS to URL Forwarder" app ──HTTPS──▶ Vercel (server.py) ──▶ Neon Postgres
@@ -11,7 +11,7 @@ Samsung phone ──new bank SMS──▶ "SMS to URL Forwarder" app ──HTTPS
 Everything here runs on free plans: **Vercel Hobby** (hosting), **Neon Free** (Postgres, no card needed; years of SMS take only a few MB) and **SMS to URL Forwarder** (an open-source Android app).
 
 - **Private:** only completed transactions are stored. OTPs, verification codes, bill reminders, loan offers and collect requests are dropped (English and Arabic).
-- **INR and SAR are kept separate.** The dashboard has a currency switch. Amounts are never added together across currencies.
+- **INR and SAR are kept separate.** The dashboard opens in SAR and has a switch for INR. Amounts are never added together across currencies.
 - **Categories** come from `rules.json` (category → keywords, with Indian and Saudi merchants included). They are worked out when you view the data, so editing the file and pushing it re-categorizes all past transactions.
 
 ---
@@ -26,7 +26,7 @@ Everything here runs on free plans: **Vercel Hobby** (hosting), **Neon Free** (P
    | Name | Value |
    |---|---|
    | `EXPENSE_TOKEN` | A long random secret, 32+ characters, letters and digits only. Create it in your password manager (Samsung Pass, Google Password Manager or Bitwarden), or run `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`. |
-   | `EXPENSE_TZ` | Where you live, e.g. `Asia/Riyadh` or `Asia/Kolkata`. This decides where one month ends and the next begins. |
+   | `EXPENSE_TZ` | Optional. Defaults to `Asia/Riyadh`; set it to `Asia/Kolkata` only if you move. This decides where one month ends and the next begins. |
 
 5. Go to **Deployments → ⋯ → Redeploy** so the new variables take effect.
 6. Open `https://<your-project>.vercel.app`. When the browser asks for a login, use any username and your `EXPENSE_TOKEN` as the password.

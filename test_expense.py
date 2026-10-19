@@ -98,7 +98,7 @@ class StoreMixin:
         self.assertEqual(s['months'], [{'month': '2026-10', 'spent': 250.0, 'received': 75000.0}])
         s = server.summary(db, currency='SAR')
         self.assertEqual((s['month'], s['by_category']), ('2026-09', {'Food': 45.5}))
-        self.assertEqual(server.summary(db)['currency'], 'INR')  # latest transaction's currency
+        self.assertEqual(server.summary(db)['currency'], 'SAR')  # SAR first even when INR is newer
         self.assertEqual([t['currency'] for t in server.transactions(db, '2026-09')], ['SAR'])
 
 
@@ -155,7 +155,7 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.call('POST', '/sms', form, content_type='application/x-www-form-urlencoded')[0], 201)
         self.assertEqual(self.call('POST', '/sms', b'{"sender":"x","body":"Rs 5 paid","received_at":"yesterday"}')[0], 400)
         self.assertEqual(self.call('POST', '/sms', b'not json')[0], 400)
-        os.environ['EXPENSE_TZ'] = 'Asia/Kolkata'
+        os.environ['EXPENSE_TZ'] = 'Asia/Kolkata'  # overrides the Asia/Riyadh default
         sms = json.dumps({'sender': 'X', 'body': SAMPLES[1][0], 'received_at': '1792002600000'})  # epoch ms, as the phone app sends
         self.assertEqual(json.loads(self.call('POST', '/sms', sms.encode())[1])['transaction']['received_at'], '2026-10-15T00:00:00+05:30')
 
