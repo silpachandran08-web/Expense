@@ -1,0 +1,8 @@
+[project]
+name = "expense"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["pg8000==1.31.2", "tzdata"]
+
+[tool.vercel]
+entrypoint = "server:app"

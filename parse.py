@@ -1,38 +1,59 @@
-"""Turn a bank/UPI SMS into a transaction, and a transaction into a category."""
+"""Turn a bank/UPI SMS (India: INR, Saudi Arabia: SAR, English or Arabic) into a transaction, and a transaction into a category."""
 import re
 from decimal import Decimal, InvalidOperation
 
-AMOUNT = re.compile(r'(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)', re.I)
-DEBIT = re.compile(r'\b(debited|spent|paid|sent|withdrawn|purchase)\b', re.I)
-CREDIT = re.compile(r'\b(credited|received|deposited|refunded)\b', re.I)
+ARABIC_DIGITS = str.maketrans('٠١٢٣٤٥٦٧٨٩٫٬', '0123456789.,')
+CURRENCIES = {'rs': 'INR', 'inr': 'INR', '₹': 'INR', 'sar': 'SAR', 'sr': 'SAR', 'ريال': 'SAR', 'ر.س': 'SAR'}
+_CUR = r'(rs\.?|inr|₹|sar|sr|ريال|ر\.س)'
+_NUM = r'(\d[\d,]*(?:\.\d{1,2})?)'
+# Currency before the number ("Rs.250", "SAR 45.00") is tried first; number before currency ("45.00 ريال") is the fallback,
+# so an account number like "XX1234 Rs 500" isn't mistaken for the amount.
+CUR_FIRST = re.compile(rf'(?<![A-Za-z]){_CUR}\s*:?\s*{_NUM}', re.I)
+NUM_FIRST = re.compile(rf'(?<![\w.]){_NUM}\s*{_CUR}(?![A-Za-z])', re.I)
+
+# Arabic words are matched as substrings because Arabic attaches prefixes ("بال", "و") to words.
+DEBIT = re.compile(r'\b(?:debited|spent|paid|sent|withdrawn|withdrawal|purchase|outgoing|pos)\b|شراء|خصم|سحب|صادرة|سداد|دفع', re.I)
+CREDIT = re.compile(r'\b(?:credited|received|deposited|deposit|incoming|refunded|refund|reversal)\b|إيداع|ايداع|واردة|استرداد|مسترد|راتب', re.I)
 # Messages that mention money but are not a completed transaction.
-SKIP = re.compile(r'\b(otp|one[- ]time password|will be debited|is due|due on|requested|pre-?approved|offer)\b', re.I)
-_END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using)\b|[.,;(]|$)'
+SKIP = re.compile(
+    r'\b(?:otp|one[- ]time password|verification code|passcode|will be debited|is due|due on|requested|pre-?approved|offer)\b'
+    r'|رمز التحقق|رمز التفعيل|كلمة المرور|لمرة واحدة|مستحق', re.I)
+_END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using|في)\b|[,;(\n]|\.(?=\s|$)|$)'  # a dot ends the name only as a full stop, so "NOON.COM" stays whole
 MERCHANT = [
     re.compile(r'\bVPA\s+([\w.\-]+@[\w.\-]+)', re.I),
-    re.compile(r'\b(?:at|to|towards|trf to|info:?)\s+([\w&@.\-* ]{2,40}?)' + _END, re.I),
-    re.compile(r'\bfrom\s+([\w&@.\-* ]{2,40}?)' + _END, re.I),
+    re.compile(r'\b(?:at|to|towards|trf to|info|لدى|إلى|الى)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
+    re.compile(r'\b(?:from|من)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
 ]
-NOT_MERCHANT = re.compile(r'^(?:your|a/?c|ac|acct|account|card|bank|the|you)\b', re.I)
+NOT_MERCHANT = re.compile(r'^(?:(?:your|a/?c|ac|acct|account|card|bank|the|you)\b|حساب|بطاق)', re.I)
+MAX_SMS = 1000  # bank SMS are far shorter; also keeps the UNIQUE(body) index under Postgres' key size limit
 
 
 def parse(body):
-    """Return {amount_paise, direction, merchant} or None if this is not a completed transaction."""
-    if SKIP.search(body):
+    """Return {amount_minor, currency, direction, merchant} or None if this is not a completed transaction."""
+    body = body.translate(ARABIC_DIGITS)
+    if len(body) > MAX_SMS or SKIP.search(body):
         return None
-    amount = AMOUNT.search(body)
+    amount = CUR_FIRST.search(body)
+    currency, number = (amount.group(1), amount.group(2)) if amount else (None, None)
+    if not amount and (amount := NUM_FIRST.search(body)):
+        number, currency = amount.group(1), amount.group(2)
     debit, credit = DEBIT.search(body), CREDIT.search(body)
     if not amount or not (debit or credit):
         return None
     try:
-        paise = int(Decimal(amount.group(1).replace(',', '')) * 100)
+        minor = int(Decimal(number.replace(',', '')) * 100)  # paise / halalas
     except InvalidOperation:
         return None
-    if paise <= 0:
+    if minor <= 0:
         return None
     # Transfers mention both words; the one that comes first describes this account.
     is_debit = debit and (not credit or debit.start() < credit.start())
-    return {'amount_paise': paise, 'direction': 'debit' if is_debit else 'credit', 'merchant': _merchant(body)}
+    return {
+        'amount_minor': minor,
+        'currency': CURRENCIES[currency.lower().rstrip('.')],
+        'direction': 'debit' if is_debit else 'credit',
+        'merchant': _merchant(body),
+    }
 
 
 def _merchant(body):

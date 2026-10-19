@@ -26,7 +26,7 @@
 </head>
 <body>
 <main>
-  <header><h1>Expenses</h1><select id="month" aria-label="Month"></select></header>
+  <header><h1>Expenses</h1><div><select id="currency" aria-label="Currency"></select> <select id="month" aria-label="Month"></select></div></header>
   <div class="grid">
     <div class="card"><div class="muted">Spent</div><div class="kpi debit" id="spent">–</div></div>
     <div class="card"><div class="muted">Received</div><div class="kpi credit" id="received">–</div></div>
@@ -39,39 +39,41 @@
   <div class="card scroll"><h3>Transactions</h3><table id="txns"></table></div>
 </main>
 <script>
-const inr = n => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+let money = n => n;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const charts = {};
 const draw = (id, config) => { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), config); };
 
-async function load(month) {
-  const q = month ? '?month=' + month : '';
-  const [s, txns] = await Promise.all([
-    fetch('/api/summary' + q).then(r => r.json()),
-    fetch('/api/transactions?month=' + (month || '')).then(r => r.json()),
-  ]);
+async function load(month = '', currency = '') {
+  const s = await fetch(`/api/summary?month=${month}&currency=${currency}`).then(r => r.json());
+  const txns = await fetch(`/api/transactions?month=${s.month}&currency=${s.currency}`).then(r => r.json());
+  const fmt = new Intl.NumberFormat(s.currency === 'SAR' ? 'en-SA' : 'en-IN', { style: 'currency', currency: s.currency, maximumFractionDigits: 2 });
+  money = n => fmt.format(n);
+  document.getElementById('currency').innerHTML = (s.currencies.length ? s.currencies : [s.currency])
+    .map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('');
   const sel = document.getElementById('month');
   sel.innerHTML = s.months.slice().reverse().map(m => `<option ${m.month === s.month ? 'selected' : ''}>${m.month}</option>`).join('');
   const cur = s.months.find(m => m.month === s.month) || { spent: 0, received: 0 };
-  document.getElementById('spent').textContent = inr(cur.spent);
-  document.getElementById('received').textContent = inr(cur.received);
+  document.getElementById('spent').textContent = money(cur.spent);
+  document.getElementById('received').textContent = money(cur.received);
 
   draw('cat', { type: 'doughnut', data: { labels: Object.keys(s.by_category), datasets: [{ data: Object.values(s.by_category) }] },
-    options: { aspectRatio: 1.5, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.label}: ${inr(c.raw)}` } } } } });
+    options: { aspectRatio: 1.5, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.label}: ${money(c.raw)}` } } } } });
   draw('trend', { type: 'bar', data: { labels: s.months.map(m => m.month), datasets: [
     { label: 'Spent', data: s.months.map(m => m.spent), backgroundColor: getComputedStyle(document.body).getPropertyValue('--debit') },
     { label: 'Received', data: s.months.map(m => m.received), backgroundColor: getComputedStyle(document.body).getPropertyValue('--credit') },
   ] }, options: { plugins: { legend: { position: 'bottom' } } } });
 
   document.getElementById('merchants').innerHTML = Object.entries(s.top_merchants)
-    .map(([m, v]) => `<tr><td>${esc(m)}</td><td class="num">${inr(v)}</td></tr>`).join('') || '<tr><td class="muted">No spending yet</td></tr>';
-  const rows = month ? txns : txns.filter(t => t.received_at.startsWith(s.month));
+    .map(([m, v]) => `<tr><td>${esc(m)}</td><td class="num">${money(v)}</td></tr>`).join('') || '<tr><td class="muted">No spending yet</td></tr>';
   document.getElementById('txns').innerHTML = '<tr><th>Date</th><th>Merchant</th><th>Category</th><th class="num">Amount</th></tr>' +
-    rows.map(t => `<tr title="${esc(t.body)}"><td>${esc(t.received_at.slice(0, 10))}</td><td>${esc(t.merchant || '(unknown)')}</td>` +
-      `<td>${esc(t.category)}</td><td class="num ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${inr(t.amount)}</td></tr>`).join('');
+    txns.map(t => `<tr title="${esc(t.body)}"><td>${esc(t.received_at.slice(0, 10))}</td><td>${esc(t.merchant || '(unknown)')}</td>` +
+      `<td>${esc(t.category)}</td><td class="num ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</td></tr>`).join('');
 }
 
-document.getElementById('month').addEventListener('change', e => load(e.target.value));
+const selectedCurrency = () => document.getElementById('currency').value;
+document.getElementById('month').addEventListener('change', e => load(e.target.value, selectedCurrency()));
+document.getElementById('currency').addEventListener('change', () => load('', selectedCurrency()));
 load();
 </script>
 </body>

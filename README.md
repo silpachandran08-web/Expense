@@ -1,49 +1,79 @@
 # Expense
 
-Tracks your spending automatically from bank and UPI SMS on Android.
+Tracks your spending automatically from bank SMS. It reads UPI and card SMS from Indian banks (INR) and SMS from Saudi banks in English or Arabic (SAR).
 
 ```
-Android phone ──(new SMS, via MacroDroid)──▶ server.py ──▶ SQLite ──▶ dashboard (charts by category, month, merchant)
+Samsung phone ──new bank SMS──▶ "SMS to URL Forwarder" app ──HTTPS──▶ Vercel (server.py) ──▶ Neon Postgres
+                                                                              │
+                                                    you, in a browser ◀── dashboard: per currency, month, category, merchant
 ```
 
-- **No dependencies:** only Python 3.10+ standard library.
-- **Private:** only SMS that look like a completed transaction are stored. OTPs, bill reminders, loan offers and collect requests are dropped.
-- **Categories** come from `rules.json` (category → keywords). They are worked out when you view the data, so editing the file re-categorizes all past transactions instantly.
+Everything here runs on free plans: **Vercel Hobby** (hosting), **Neon Free** (Postgres, no card needed; years of SMS take only a few MB) and **SMS to URL Forwarder** (an open-source Android app).
 
-## 1. Run the server
+- **Private:** only completed transactions are stored. OTPs, verification codes, bill reminders, loan offers and collect requests are dropped (English and Arabic).
+- **INR and SAR are kept separate.** The dashboard has a currency switch. Amounts are never added together across currencies.
+- **Categories** come from `rules.json` (category → keywords, with Indian and Saudi merchants included). They are worked out when you view the data, so editing the file and pushing it re-categorizes all past transactions.
 
-```sh
-export EXPENSE_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
-echo "$EXPENSE_TOKEN"   # save this, the phone and browser need it
-python3 server.py       # listens on 0.0.0.0:8000 (change with HOST / PORT, DB path with EXPENSE_DB)
+---
+
+## 1. Deploy the server on Vercel (about 10 minutes, free)
+
+1. Merge this branch into `main` on GitHub. Vercel deploys `main` to your public URL.
+2. Go to [vercel.com](https://vercel.com), sign up with GitHub (Hobby plan) and choose **Add New → Project**. Import `Expense` and keep the defaults. `vercel.json` already tells Vercel it's a Python app. Click **Deploy**. The first deploy will show "unauthorized" until step 4 is done; that's expected.
+3. **Add the database:** open the project, go to **Storage → Create Database → Neon (Serverless Postgres)**, pick the **Free** plan and the region closest to you (Mumbai or Frankfurt both work), and connect it to the project. This adds the `DATABASE_URL` environment variable automatically. The table is created on the first request.
+4. **Set the secrets:** go to **Settings → Environment Variables** and add:
+
+   | Name | Value |
+   |---|---|
+   | `EXPENSE_TOKEN` | A long random secret, 32+ characters, letters and digits only. Create it in your password manager (Samsung Pass, Google Password Manager or Bitwarden), or run `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`. |
+   | `EXPENSE_TZ` | Where you live, e.g. `Asia/Riyadh` or `Asia/Kolkata`. This decides where one month ends and the next begins. |
+
+5. Go to **Deployments → ⋯ → Redeploy** so the new variables take effect.
+6. Open `https://<your-project>.vercel.app`. When the browser asks for a login, use any username and your `EXPENSE_TOKEN` as the password.
+
+## 2. Forward SMS from the Samsung Galaxy S23 Ultra
+
+Samsung Messages stays your normal SMS app. The forwarder only listens for new SMS and sends matching ones to your server.
+
+**Install:** get **SMS to URL Forwarder** (`tech.bogomolov.incomingsmsgateway`) from [F-Droid](https://f-droid.org/packages/tech.bogomolov.incomingsmsgateway/). Either install the F-Droid app first, or download the APK from that page and allow your browser to "Install unknown apps" when asked.
+
+> If you installed the APK through the browser and Android won't let you grant the SMS permission ("Restricted setting"), go to **Settings → Apps → SMS to URL Forwarder → ⋮ (top right) → Allow restricted settings**, then grant the permission.
+
+**Add a forwarding rule** (tap **+** in the app):
+
+| Field | Value |
+|---|---|
+| Sender | `*` (all senders) |
+| Webhook URL | `https://<your-project>.vercel.app/sms` |
+| SMS filter (regex) | `(?i)(rs\.?\|inr\|₹\|sar\|sr\|ريال)\s*:?\s*[0-9٠-٩]\|[0-9٠-٩]\s*(sar\|sr\|ريال)` (only SMS with an amount leave your phone) |
+| SIM | Any (works for both the Indian and Saudi SIM / eSIM) |
+| JSON template | see below |
+| JSON headers | see below |
+
+The filter column above shows `\|` only because of table formatting. Type a plain `|` in the app:
+`(?i)(rs\.?|inr|₹|sar|sr|ريال)\s*:?\s*[0-9٠-٩]|[0-9٠-٩]\s*(sar|sr|ريال)`
+
+JSON template:
+```json
+{"sender": "%from%", "body": "%text%", "received_at": "%sentStamp%"}
 ```
 
-Open `http://<server>:8000/`. When the browser asks for a login, use any username and the token as the password.
+JSON headers (replace `YOUR_TOKEN`):
+```json
+{"User-agent": "SMS Forwarder App", "Authorization": "Bearer YOUR_TOKEN"}
+```
 
-### Where to host it
+Save, then send yourself a test SMS such as `Rs 1 paid to TEST`. It should appear on the dashboard. Delete it from Neon's SQL editor afterwards if you like.
 
-The phone must be able to reach the server. **Don't expose plain HTTP to the internet**, because the token would travel unencrypted. Pick one of these:
+**Samsung battery settings (important).** Without these, One UI puts the app to sleep and SMS get missed:
+- **Settings → Battery → Background usage limits → Never sleeping apps → +** and add SMS to URL Forwarder.
+- **Settings → Apps → SMS to URL Forwarder → Battery → Unrestricted.**
 
-- **Tailscale (easiest, recommended):** install Tailscale on the phone and on the server (a home PC, Raspberry Pi or cheap VPS). Then use `http://<server-tailscale-name>:8000`. It's private, needs no open ports and no certificates.
-- **VPS with HTTPS:** put [Caddy](https://caddyserver.com) in front (`caddy reverse-proxy --from expense.yourdomain.com --to localhost:8000`) and run `server.py` with `HOST=127.0.0.1`.
+**Good to know:**
+- If the phone is offline or the server is slow to wake, the app retries up to 10 times. Duplicate deliveries are ignored.
+- Indian bank SMS only arrive while your Indian SIM is active in the phone, including when roaming.
 
-To keep it running, use a systemd service, `tmux`, or `nohup python3 server.py &`.
-
-## 2. Set up the phone (MacroDroid, free)
-
-Install **MacroDroid** from the Play Store and create a macro:
-
-1. **Trigger:** *SMS Received* → *Any number*. Optionally, under *Content*, choose *Contains* and enter `Rs` so other SMS never leave the phone.
-2. **Action:** *Connectivity → HTTP Request*
-   - Method: `POST`
-   - URL: `http://<server>:8000/sms`
-   - Headers: `Authorization` = `Bearer <your token>`
-   - Body / content type: **Form URL encoded** (handles quotes and newlines in SMS safely), with two parameters:
-     - `sender` = `[sms_number]`
-     - `body` = `[sms_message]`
-3. Save, and allow MacroDroid's SMS permission and "no battery optimisation" when Android asks.
-
-Tasker, Automate or any other automation app works too, as long as it POSTs `sender` and `body` (form or JSON).
+---
 
 ## API
 
@@ -51,27 +81,26 @@ All endpoints need `Authorization: Bearer <token>` (or browser Basic auth with t
 
 | Method | Path | What |
 |---|---|---|
-| POST | `/sms` | `sender`, `body`, and optionally `received_at` (ISO 8601, default: now). Returns `201` if stored, `200` if skipped or a duplicate. |
-| GET | `/api/summary?month=YYYY-MM` | Spent and received per month, spending by category, and top 10 merchants (default: latest month). |
-| GET | `/api/transactions?month=YYYY-MM` | Transactions with category. |
+| POST | `/sms` | Fields `sender`, `body`, and optionally `received_at` (ISO 8601, or epoch milliseconds). Send them as JSON or as a form. Returns `201` if stored, `200` if skipped or a duplicate. |
+| GET | `/api/summary?currency=SAR&month=YYYY-MM` | Spent and received per month, spending by category, and top 10 merchants. Defaults to the latest currency and month. |
+| GET | `/api/transactions?currency=INR&month=YYYY-MM` | Transactions with category. |
 | GET | `/` | Dashboard |
 
-Test it from your computer:
+## Running locally
+
+Uses only the Python 3.12+ standard library, plus `pg8000` if you want Postgres:
 
 ```sh
-curl -H "Authorization: Bearer $EXPENSE_TOKEN" --data-urlencode sender=VM-HDFCBK \
-  --data-urlencode 'body=Sent Rs.250.00 From HDFC Bank A/C *1234 To SWIGGY On 18/10/26 Ref 6287' \
-  http://localhost:8000/sms
+EXPENSE_TOKEN=local-test-token-123 python3 server.py              # SQLite file expense.db, http://127.0.0.1:8000
+DATABASE_URL=postgresql://... EXPENSE_TOKEN=... python3 server.py  # Postgres (pip install pg8000)
 ```
 
-## Improving categories
+## Improving categories and parsing
 
-Open the dashboard and look for **Uncategorized** rows. Hover a row to see the original SMS, then add a keyword to `rules.json`. Matching is case-insensitive and whole-word only, and the first category that matches wins.
-
-## Tests
+- **Uncategorized rows:** hover the row on the dashboard to see the SMS, add a keyword to `rules.json` and push. Matching is case-insensitive and whole-word only, and the first category that matches wins.
+- **An SMS parsed wrongly or not at all:** add it, with numbers masked, to `SAMPLES` in `test_expense.py`, fix `parse.py`, and run the tests:
 
 ```sh
 python3 -m unittest -v
+TEST_DATABASE_URL=postgresql://... python3 -m unittest -v   # also tests Postgres (drops the transactions table!)
 ```
-
-When your bank uses an SMS format that isn't parsed correctly, add it to `SAMPLES` in `test_expense.py` and adjust the patterns in `parse.py`.
