@@ -100,6 +100,8 @@ class StoreMixin:
         self.assertEqual((s['month'], s['by_category']), ('2026-09', {'Food': 45.5}))
         self.assertEqual(server.summary(db)['currency'], 'SAR')  # SAR first even when INR is newer
         self.assertEqual([t['currency'] for t in server.transactions(db, '2026-09')], ['SAR'])
+        server.store_sms(db, 'AlRajhi', SAMPLES[9][0], '2026-09-21T09:00:00+03:00')  # unmatched incoming transfer
+        self.assertEqual(server.transactions(db, '2026-09')[0]['category'], 'Income')
 
 
 class SqliteStoreTest(StoreMixin, unittest.TestCase):

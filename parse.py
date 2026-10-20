@@ -65,11 +65,11 @@ def _merchant(body):
     return ''
 
 
-def categorize(merchant, body, rules):
+def categorize(merchant, body, rules, default='Uncategorized'):
     """First category whose keyword appears in the merchant (preferred) or the SMS text."""
     for text in (merchant.lower(), body.lower()):
         for category, keywords in rules.items():
             # Whole-word match, so "ola" doesn't hit "motorola" and "rent" doesn't hit "current".
             if any(re.search(r'\b' + re.escape(k.lower()) + r'\b', text) for k in keywords):
                 return category
-    return 'Uncategorized'
+    return default

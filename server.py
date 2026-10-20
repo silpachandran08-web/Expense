@@ -95,7 +95,8 @@ def transactions(db, month=None, currency=None):
     return [{
         'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
         'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
-        'merchant': r['merchant'], 'category': categorize(r['merchant'], r['body'], rules),
+        'merchant': r['merchant'],
+        'category': categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
     } for r in rows
         if (not month or r['received_at'].startswith(month)) and (not currency or r['currency'] == currency)]
 

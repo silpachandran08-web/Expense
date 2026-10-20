@@ -2,81 +2,248 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1012" media="(prefers-color-scheme: dark)">
 <title>Expenses</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root { --bg: #f7f7f8; --card: #fff; --text: #1d1d1f; --muted: #6b6b70; --line: #e4e4e7; --debit: #c2410c; --credit: #15803d; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #111113; --card: #1c1c1f; --text: #ececee; --muted: #9a9aa1; --line: #2e2e33; --debit: #fb923c; --credit: #4ade80; } }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, sans-serif; }
-  main { max-width: 1000px; margin: 0 auto; display: grid; gap: 16px; }
-  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-  h1 { margin: 0; font-size: 22px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  .kpi { font-size: 26px; font-weight: 600; }
-  .muted { color: var(--muted); font-size: 13px; }
-  .debit { color: var(--debit); } .credit { color: var(--credit); }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-  td.num, th.num { text-align: right; white-space: nowrap; }
-  .scroll { overflow-x: auto; }
-  select, .logout button { font: inherit; padding: 4px 8px; }
-  .logout { display: inline; }
+  :root {
+    color-scheme: light;
+    --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f1f3; --line: #e6e7ea;
+    --text: #0b0b0c; --text-2: #52514e; --muted: #77767a;
+    --accent: #2a78d6; --accent-soft: #dbe8f8; --bar: #2a78d6; --bar-dim: #b7d3f6;
+    --good: #0f7b3e; --bad: #b42318;
+    --hero-from: #1c5cab; --hero-to: #2a78d6; --hero-text: #ffffff; --hero-muted: #cde2fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1012; --surface: #1a1a1c; --surface-2: #242427; --line: #2c2c30;
+      --text: #f0efec; --text-2: #c3c2b7; --muted: #93929a;
+      --accent: #5598e7; --accent-soft: #1d3150; --bar: #3987e5; --bar-dim: #24456f;
+      --good: #4ade80; --bad: #f87171;
+      --hero-from: #104281; --hero-to: #1c5cab; --hero-text: #ffffff; --hero-muted: #b7d3f6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 16px; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+  /* App bar */
+  .bar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+  .bar h1 { font-size: 20px; margin: 0; flex: 1; }
+  .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+  .icon-btn { border: 0; background: var(--surface-2); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--text-2); }
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, var(--hero-from), var(--hero-to)); color: var(--hero-text); border-radius: 20px; padding: 18px 20px 20px; }
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-nav button { border: 0; background: rgb(255 255 255 / .16); color: inherit; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1; }
+  .month-nav button:disabled { opacity: .35; cursor: default; }
+  .month-nav span { font-weight: 600; }
+  .hero .label { color: var(--hero-muted); font-size: 13px; }
+  .hero .total { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .hero .total small { font-size: 16px; font-weight: 600; margin-right: 6px; color: var(--hero-muted); }
+  .hero .row { display: flex; gap: 20px; margin-top: 14px; flex-wrap: wrap; font-size: 14px; }
+  .hero .row b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .delta { display: inline-block; margin-top: 6px; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgb(255 255 255 / .16); }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  .card h2 span { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 680px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+  /* Category bars: labelled, so one hue is enough */
+  .cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .cat-top { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .cat-top .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-top .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cat-top .pct { color: var(--muted); font-size: 12px; width: 36px; text-align: right; }
+  .track { height: 6px; background: var(--surface-2); border-radius: 4px; margin: 6px 0 0 38px; overflow: hidden; }
+  .track i { display: block; height: 100%; background: var(--bar); border-radius: 4px; }
+  .emoji { width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font-size: 15px; }
+
+  /* Trend */
+  .trend { display: flex; align-items: flex-end; gap: 8px; height: 140px; padding-top: 18px; }
+  .trend button { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
+  .trend .col { width: 100%; max-width: 40px; background: var(--bar-dim); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+  .trend button[aria-pressed="true"] .col { background: var(--bar); }
+  .trend .col em { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 4px; font-style: normal; font-size: 11px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .trend .m { font-size: 12px; color: var(--muted); }
+  .trend button[aria-pressed="true"] .m { color: var(--text); font-weight: 600; }
+
+  /* Lists */
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li + li { border-top: 1px solid var(--line); }
+  .merchant { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 14px; }
+  .merchant span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .merchant span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .day { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }
+  .day:first-of-type { margin-top: 0; }
+  details.txn { border-top: 1px solid var(--line); }
+  details.txn:first-of-type { border-top: 0; }
+  details.txn summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; }
+  details.txn summary::-webkit-details-marker { display: none; }
+  .txn .emoji { width: 38px; height: 38px; border-radius: 12px; font-size: 18px; }
+  .txn .who { flex: 1; min-width: 0; }
+  .txn .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .txn .who small { color: var(--muted); font-size: 12px; }
+  .txn .amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .txn .amount.credit { color: var(--good); }
+  .txn pre { margin: 0 0 12px 50px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
+
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
+  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
+  .skeleton { opacity: .5; }
 </style>
 </head>
 <body>
 <main>
-  <header><h1>Expenses</h1><div><select id="currency" aria-label="Currency"></select> <select id="month" aria-label="Month"></select> <form class="logout" method="post" action="/logout"><button>Sign out</button></form></div></header>
-  <div class="grid">
-    <div class="card"><div class="muted">Spent</div><div class="kpi debit" id="spent">–</div></div>
-    <div class="card"><div class="muted">Received</div><div class="kpi credit" id="received">–</div></div>
+  <div class="bar">
+    <h1>Expenses</h1>
+    <div class="seg" id="currency" role="group" aria-label="Currency"></div>
+    <form method="post" action="/logout">
+      <button class="icon-btn" aria-label="Sign out" title="Sign out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </form>
   </div>
+
+  <section class="hero skeleton" id="hero" aria-live="polite">
+    <div class="month-nav">
+      <button id="prev" aria-label="Previous month">‹</button>
+      <span id="month-label">–</span>
+      <button id="next" aria-label="Next month">›</button>
+    </div>
+    <div class="label">Spent</div>
+    <div class="total" id="spent">–</div>
+    <div id="delta"></div>
+    <div class="row">
+      <div><span class="label">Received</span><b id="received">–</b></div>
+      <div><span class="label">Transactions</span><b id="count">–</b></div>
+    </div>
+  </section>
+
   <div class="grid">
-    <div class="card"><h3>By category</h3><canvas id="cat" aria-label="Spending by category"></canvas></div>
-    <div class="card"><h3>Monthly trend</h3><canvas id="trend" aria-label="Spent and received per month"></canvas></div>
+    <section class="card">
+      <h2>Where it went <span id="cat-total"></span></h2>
+      <ul class="cats" id="cats"></ul>
+    </section>
+    <section class="card">
+      <h2>Last 6 months <span>spent</span></h2>
+      <div class="trend" id="trend"></div>
+      <h2 style="margin-top:20px">Top merchants</h2>
+      <ul class="rows" id="merchants"></ul>
+    </section>
   </div>
-  <div class="card"><h3>Top merchants</h3><table id="merchants"></table></div>
-  <div class="card scroll"><h3>Transactions</h3><table id="txns"></table></div>
+
+  <section class="card">
+    <h2>Transactions <span>tap one to see the SMS</span></h2>
+    <div id="txns"></div>
+  </section>
 </main>
 <script>
-let money = n => n;
+const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Transport': '🚗', 'Travel': '✈️', 'Bills & Utilities': '💡',
+  'Subscriptions': '📺', 'Health': '💊', 'Entertainment': '🎬', 'Rent & EMI': '🏠', 'Investments': '📈', 'Insurance': '🛡️',
+  'Cash': '💵', 'Salary': '💰', 'Income': '💰' };
+const icon = c => ICONS[c] || '🧾';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 // Session expired or signed out elsewhere: back to the login page.
 const api = url => fetch(url).then(r => r.status === 401 ? (location.href = '/login', new Promise(() => {})) : r.json());
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const charts = {};
-const draw = (id, config) => { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), config); };
+const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
+const state = { month: '', currency: '' };
 
-async function load(month = '', currency = '') {
-  const s = await api(`/api/summary?month=${month}&currency=${currency}`);
+async function load() {
+  const s = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
   const txns = await api(`/api/transactions?month=${s.month}&currency=${s.currency}`);
-  const fmt = new Intl.NumberFormat(s.currency === 'SAR' ? 'en-SA' : 'en-IN', { style: 'currency', currency: s.currency, maximumFractionDigits: 2 });
-  money = n => fmt.format(n);
-  document.getElementById('currency').innerHTML = (s.currencies.length ? s.currencies : [s.currency])
-    .map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('');
-  const sel = document.getElementById('month');
-  sel.innerHTML = s.months.slice().reverse().map(m => `<option ${m.month === s.month ? 'selected' : ''}>${m.month}</option>`).join('');
+  Object.assign(state, { month: s.month, currency: s.currency });
+  const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = n => `${s.currency} ${num.format(n)}`;
+  const short = n => n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : Math.round(n);
+
+  // Currency switch: SAR first.
+  const currencies = [...new Set(['SAR', ...s.currencies])];
+  $('currency').innerHTML = currencies.map(c => `<button type="button" aria-pressed="${c === s.currency}" data-c="${c}">${c}</button>`).join('');
+
+  // Hero
+  const months = s.months.map(m => m.month);
+  if (!months.includes(s.month)) months.push(s.month);
+  months.sort();
+  const i = months.indexOf(s.month);
+  $('prev').disabled = i <= 0; $('next').disabled = i >= months.length - 1;
+  $('prev').onclick = () => { state.month = months[i - 1]; load(); };
+  $('next').onclick = () => { state.month = months[i + 1]; load(); };
+  $('month-label').textContent = monthName(s.month);
   const cur = s.months.find(m => m.month === s.month) || { spent: 0, received: 0 };
-  document.getElementById('spent').textContent = money(cur.spent);
-  document.getElementById('received').textContent = money(cur.received);
+  const prev = s.months.find(m => m.month === months[i - 1]);
+  $('spent').innerHTML = `<small>${s.currency}</small>${num.format(cur.spent)}`;
+  $('received').textContent = money(cur.received);
+  $('count').textContent = txns.length;
+  if (prev && prev.spent > 0) {
+    const pct = Math.round((cur.spent - prev.spent) / prev.spent * 100);
+    $('delta').innerHTML = `<span class="delta">${pct > 0 ? '▲' : pct < 0 ? '▼' : '='} ${Math.abs(pct)}% ${pct > 0 ? 'more' : pct < 0 ? 'less' : 'same'} than ${monthName(prev.month, 'short').split(' ')[0]}</span>`;
+  } else $('delta').innerHTML = '';
+  $('hero').classList.remove('skeleton');
 
-  draw('cat', { type: 'doughnut', data: { labels: Object.keys(s.by_category), datasets: [{ data: Object.values(s.by_category) }] },
-    options: { aspectRatio: 1.5, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.label}: ${money(c.raw)}` } } } } });
-  draw('trend', { type: 'bar', data: { labels: s.months.map(m => m.month), datasets: [
-    { label: 'Spent', data: s.months.map(m => m.spent), backgroundColor: getComputedStyle(document.body).getPropertyValue('--debit') },
-    { label: 'Received', data: s.months.map(m => m.received), backgroundColor: getComputedStyle(document.body).getPropertyValue('--credit') },
-  ] }, options: { plugins: { legend: { position: 'bottom' } } } });
+  // Categories
+  const cats = Object.entries(s.by_category);
+  const totalSpent = cats.reduce((a, [, v]) => a + v, 0);
+  $('cat-total').textContent = cats.length ? `${cats.length} categories` : '';
+  $('cats').innerHTML = cats.map(([c, v]) => {
+    const pct = totalSpent ? v / totalSpent * 100 : 0;
+    return `<li><div class="cat-top"><span class="emoji" aria-hidden="true">${icon(c)}</span><span class="name">${esc(c)}</span>` +
+      `<span class="amt">${money(v)}</span><span class="pct">${Math.round(pct)}%</span></div>` +
+      `<div class="track" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div></li>`;
+  }).join('') || '<li class="empty">No spending this month</li>';
 
-  document.getElementById('merchants').innerHTML = Object.entries(s.top_merchants)
-    .map(([m, v]) => `<tr><td>${esc(m)}</td><td class="num">${money(v)}</td></tr>`).join('') || '<tr><td class="muted">No spending yet</td></tr>';
-  document.getElementById('txns').innerHTML = '<tr><th>Date</th><th>Merchant</th><th>Category</th><th class="num">Amount</th></tr>' +
-    txns.map(t => `<tr title="${esc(t.body)}"><td>${esc(t.received_at.slice(0, 10))}</td><td>${esc(t.merchant || '(unknown)')}</td>` +
-      `<td>${esc(t.category)}</td><td class="num ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</td></tr>`).join('');
+  // Trend: last 6 months up to the selected one; tap a bar to open that month.
+  const window6 = months.slice(Math.max(0, i - 5), i + 1);
+  const spentOf = m => (s.months.find(x => x.month === m) || { spent: 0 }).spent;
+  const max = Math.max(...window6.map(spentOf), 1);
+  $('trend').innerHTML = window6.map(m => {
+    const v = spentOf(m);
+    return `<button type="button" data-m="${m}" aria-pressed="${m === s.month}" aria-label="${monthName(m)}: ${money(v)}" title="${monthName(m)}: ${money(v)}">` +
+      `<div class="col" style="height:${Math.max(v / max * 100, 1.5).toFixed(1)}%"><em>${short(v)}</em></div>` +
+      `<span class="m">${monthName(m, 'short').split(' ')[0]}</span></button>`;
+  }).join('');
+
+  // Merchants
+  $('merchants').innerHTML = Object.entries(s.top_merchants).slice(0, 5)
+    .map(([m, v]) => `<li class="merchant"><span>${esc(m)}</span><span>${money(v)}</span></li>`).join('')
+    || '<li class="empty">No merchants yet</li>';
+
+  // Transactions grouped by day (dates are the phone's local time, so read them from the string as-is).
+  const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const yest = new Date(today); yest.setDate(today.getDate() - 1);
+  const dayLabel = d => d === iso(today) ? 'Today' : d === iso(yest) ? 'Yesterday'
+    : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  let lastDay = '';
+  $('txns').innerHTML = txns.map(t => {
+    const day = t.received_at.slice(0, 10), header = day !== lastDay ? `<div class="day">${dayLabel(day)}</div>` : '';
+    lastDay = day;
+    return header + `<details class="txn"><summary><span class="emoji" aria-hidden="true">${icon(t.category)}</span>` +
+      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${esc(t.category)} · ${t.received_at.slice(11, 16)}</small></span>` +
+      `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
+      `<pre>${esc(t.body)}</pre></details>`;
+  }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.</div>`;
 }
 
-const selectedCurrency = () => document.getElementById('currency').value;
-document.getElementById('month').addEventListener('change', e => load(e.target.value, selectedCurrency()));
-document.getElementById('currency').addEventListener('change', () => load('', selectedCurrency()));
+$('currency').addEventListener('click', e => {
+  const c = e.target.closest('button')?.dataset.c;
+  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '' }); load(); }
+});
+$('trend').addEventListener('click', e => {
+  const m = e.target.closest('button')?.dataset.m;
+  if (m && m !== state.month) { state.month = m; load(); }
+});
 load();
 </script>
 </body>
