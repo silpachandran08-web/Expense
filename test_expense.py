@@ -364,6 +364,14 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.call('GET', '/server.py', auth='')[0], 401)  # only the listed files are public
         self.assertEqual(self.call('GET', '/api/summary', auth='')[0], 401)
 
+    def test_refund_from_unknown_merchant_is_not_income(self):
+        for body in ('Refund\nAmount: SAR 40.00\nCard: *1234\nAt: ZYXW TRADING EST', 'Incoming Transfer\nAmount: SAR 900.00\nFrom: ZYXW TRADING EST'):
+            self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode())
+        s = json.loads(self.call('GET', '/api/summary')[1])
+        cats = {t['amount']: t['category'] for t in s['transactions']}
+        self.assertEqual(cats, {40.0: 'Uncategorized', 900.0: 'Income'})  # the refund waits for a category; a transfer in is income
+        self.assertEqual([t['amount'] for t in s['to_review']], [40.0])
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')

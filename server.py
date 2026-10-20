@@ -55,6 +55,8 @@ DELIVERY_DAYS = 7
 IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
 OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
 NOT_COUNTED = {IGNORED, OWN_TRANSFER}
+# A refund from a merchant with no category is money back on spending, not income: it waits for a category.
+REFUND = re.compile(r'\b(?:refund(?:ed)?|reversal|reversed|cashback)\b|استرداد|مسترد', re.I)
 # Words that mark a bank-to-bank transfer (English and Arabic), used to pair the two sides of an own transfer.
 TRANSFER = re.compile(r'\b(?:transfer(?:red)?|trf|xfer|neft|imps|rtgs|upi|iban|sarie)\b|حوالة|تحويل', re.I)
 # shortcut: pairs only same-currency, same-amount SMS within an hour; a slower or cross-currency transfer
@@ -182,7 +184,7 @@ def transactions(db, month=None, currency=None):
             'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
                         or (merchant and for_merchant(merchant))
                         or (not merchant and by_wording.get(wording(r['body'])))
-                        or categorize(merchant, r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
+                        or categorize(merchant, r['body'], rules, 'Income' if r['direction'] == 'credit' and not REFUND.search(r['body']) else 'Uncategorized'),
         })
     return result
 

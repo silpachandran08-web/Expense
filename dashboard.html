@@ -42,7 +42,7 @@
   /* App bar */
   .appbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; min-height: 56px; padding: env(safe-area-inset-top) 4px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
   .appbar.drill { padding-left: 4px; }
-  .appbar.drill #currency { display: none; }  /* a detail page keeps the currency it was opened in; the title needs the room */
+  .appbar.nocur #currency { display: none; }  /* a detail page keeps the currency it was opened in; the title needs the room */
   .titles { flex: 1; min-width: 0; }
   .titles h1 { font-size: 20px; line-height: 1.2; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .drill .titles h1 { font-size: 17px; }
@@ -169,7 +169,7 @@
   .txn.leaving { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) { .txn.leaving { transition: opacity .25s; } }
   .fix button, .btn { font-weight: 600; border: 0; border-radius: 10px; min-height: 44px; padding: 8px 16px; background: var(--accent); color: #fff; cursor: pointer; }
-  .fix { margin: 0 0 16px 50px; display: grid; gap: 12px; }
+  .fix { margin: 0 0 16px 50px; display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }  /* a one-word 40-letter merchant must wrap, not widen the page */
   .fix label { font-size: 13px; color: var(--text-2); }
   .fix select, .fix input[type=text] { width: 100%; min-height: 44px; margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
   .fix .check { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); min-height: 44px; }
@@ -306,9 +306,9 @@ function group(list, keyOf) {
   return [...g.values()];
 }
 const spendGroups = (list, keyOf) => group(list, keyOf).filter(e => e.n || e.spent).sort((a, b) => b.spent - a.spent);
-// vs previous: hidden ("new") when the previous period has nothing to compare against.
-const deltaPct = (cur, prev) => !prev || prev.spent <= 0 || prev.n < 5 ? null : Math.round((cur - prev.spent) / prev.spent * 100);
-const deltaHtml = d => d === null ? '<span class="muted">new</span>'
+// vs previous: null ("new") when there was no spending before; NaN ("–") when there's too little to compare.
+const deltaPct = (cur, prev) => !prev || prev.spent <= 0 ? null : prev.n < 5 ? NaN : Math.round((cur - prev.spent) / prev.spent * 100);
+const deltaHtml = d => d === null ? '<span class="muted">new</span>' : Number.isNaN(d) ? '<span class="muted" title="Too little data to compare">–</span>'
   : `<span class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}%</span>`;
 const byMonth = list => { const m = new Map(); for (const t of list) { if (!t._n) continue; const e = m.get(t._m) || { spent: 0, received: 0 }; e.spent += t._s; e.received += t._r; m.set(t._m, e); } return m; };
 
@@ -367,7 +367,7 @@ function recurring(all) {
         || amounts.filter(a => Math.abs(a - A) <= A * .15).length < amounts.length * .75) continue;
     const last = list[list.length - 1], lastN = dayNum(last._d);
     out.push({ merchant: last.merchant, category: last.category, cadence, A, G, last: last._d, next: fromNum(lastN + G),
-      monthly: Math.round(A * 30.4 / G), active: td <= lastN + G + 7, priceUp: last._c > A * 1.1, latest: last._c });
+      monthly: Math.round(A * 30.4 / G), active: td <= lastN + G + 7, priceUp: list.slice(-2).every(t => t._c > A * 1.1), latest: last._c });  // two in a row: one big purchase isn't a price rise
   }
   return out.sort((a, b) => b.monthly - a.monthly);
 }
@@ -407,7 +407,7 @@ function parseRoute() {
   const [name, ...rest] = path.split('/');
   let arg = '';
   try { arg = decodeURIComponent(rest.join('/')); } catch { arg = null; }  // malformed escapes: show "not found"
-  return { name: PAGES[name] ? name : 'overview', arg, q, hash: location.hash };
+  return { name: Object.hasOwn(PAGES, name) ? name : 'overview', arg, q, hash: location.hash };  // not PAGES[name]: '#/constructor' exists on every object
 }
 function filterOf(rt) {
   const f = {}, q = rt.q, mer = v => v === '_unknown' ? '' : v;
@@ -470,6 +470,7 @@ async function load(force = false) {
     if (seq !== loadSeq) return;
     $('stale').hidden = false;
     $('stale').textContent = `Couldn't refresh (${err.message}). ${painted ? 'You are seeing the last saved copy.' : ''} Pull down to try again.`;
+    if (!painted) { state.failed = true; render(); }
     return;
   }
   if (seq !== loadSeq) return;  // the currency changed while this was loading
@@ -566,7 +567,7 @@ function overview(rt, P, X) {
     `<span>${esc(P.label)}${P.sofar ? `<small>${esc(P.sofar)}</small>` : ''}</span>` +
     `<button type="button" aria-label="Next period" ${nextQs ? `data-go="#/overview?${nextQs}"` : 'disabled'}>›</button></div>` +
     `<div class="label">Spent</div><div class="total"><small>${esc(state.currency)}</small>${fmt(T.spent)}</div>` +
-    `<span class="delta">${d === null ? 'new' : `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}% vs ${esc(P.prevLabel)}`}</span>` +
+    `<span class="delta">${d === null ? 'new' : Number.isNaN(d) ? `too little in ${esc(P.prevLabel)} to compare` : `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}% vs ${esc(P.prevLabel)}`}</span>` +
     (T.refunds ? `<div class="refunds">incl. −${fmt(T.refunds)} refunds</div>` : '') +
     `<div class="kpis"><div><span>Received</span><b>${fmt(T.received)}</b></div><div><span>Net</span><b>${fmt(net)}</b></div>` +
     `<div><span>Savings rate</span><b>${T.received ? Math.round(net / T.received * 100) + '%' : '–'}</b></div>` +
@@ -632,7 +633,7 @@ function drill(rt, P, X, kind) {
   const stat = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
   let html = `<section class="card"><div class="big"><span class="muted">Spent</span><b>${money(T.spent)}</b>${kind === 'day' ? '' : `<span class="pill">${d === null ? 'new' : `${deltaHtml(d)} vs ${esc(P.prevLabel)}`}</span>`}</div><dl class="stats">` +
     (Object.keys(f).length ? stat('Share of period spend', all > 0 ? Math.round(T.spent / all * 100) + '%' : '–') : stat('Received', fmt(T.received))) +
-    stat('Transactions', T.count) + stat('Avg per transaction', fmt(T.n ? Math.round(Math.max(0, T.spent) / T.n) : 0)) +
+    stat('Transactions', T.n || T.count) + stat('Avg per purchase', fmt(T.n ? Math.round(Math.max(0, T.spent) / T.n) : 0)) +
     (T.received && Object.keys(f).length ? stat('Received', fmt(T.received)) : '') + (T.refunds ? stat('Refunds', '−' + fmt(T.refunds)) : '') + '</dl>' +
     (kind === 'day' ? '' : monthBars(state.all.filter(m), P.endMonth, P, { mini: true, href: false })) + '</section>';
   if (kind === 'merchant') {  // how often you go there, across all time
@@ -756,12 +757,13 @@ function render() {
     (k === 'activity' && review ? `<span class="badge" aria-label="${review} need a category">${review > 99 ? '99+' : review}</span>` : '') + '</a>').join('');
   if (rt.name === 'search' && $('search') && !changed) { renderResults(); return; }  // keep the box (and keyboard) while typing
   let page;
-  if (!state.sum) page = { html: `<section class="card">${empty('Loading…')}</section>` };
+  if (!state.sum) page = { html: `<section class="card">${state.failed ? empty("Couldn't load your data", 'Check your connection, then pull down to try again.') : empty('Loading…')}</section>` };
   else {
     const inR = (a, b) => t => t._d >= a && t._d <= b;
     page = PAGES[rt.name](rt, P, { cur: state.all.filter(inR(P.start, P.end)), prev: state.all.filter(inR(P.prevStart, P.prevEnd)) });
   }
   $('appbar').classList.toggle('drill', !isTab);
+  $('appbar').classList.toggle('nocur', ['category', 'merchant', 'card', 'month', 'day'].includes(rt.name));  // Search, Trends… keep the switch
   $('back').hidden = isTab;
   $('title').textContent = page.title || TITLES[rt.name] || '';
   $('title').title = page.title || '';
