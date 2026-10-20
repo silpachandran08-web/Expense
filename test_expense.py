@@ -104,6 +104,24 @@ class StoreMixin:
         self.assertEqual(server.transactions(db, '2026-09')[0]['category'], 'Income')
 
 
+    def test_ignored_merchant_stops_counting(self):
+        db = self.db
+        server.store_sms(db, 'B', 'Outgoing Transfer\nAmount: SAR 2,000.00\nTo: MY OTHER ACCOUNT\nRef 1', '2026-10-01T09:00:00+03:00')
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 50.00\nAt: PANDA\nRef 2', '2026-10-02T09:00:00+03:00')
+        transfer = next(t for t in server.transactions(db) if 'OTHER' in t['body'])
+        self.assertEqual(server.summary(db)['months'][0]['spent'], 2050.0)
+
+        server.set_category(db, transfer['id'], server.IGNORED, True)
+        server.store_sms(db, 'B', 'Outgoing Transfer\nAmount: SAR 500.00\nTo: MY OTHER ACCOUNT\nRef 3', '2026-10-05T09:00:00+03:00')
+        s = server.summary(db)
+        self.assertEqual(s['months'][0]['spent'], 50.0)  # neither the old nor the new transfer counts
+        self.assertEqual((s['by_category'], list(s['top_merchants'])), ({'Groceries': 50.0}, ['PANDA']))
+        self.assertEqual(sum(t['category'] == server.IGNORED for t in s['transactions']), 2)  # still listed, to undo
+        self.assertNotIn(server.IGNORED, s['categories'])
+
+        server.set_category(db, transfer['id'], 'Transfers', True)  # un-ignore
+        self.assertEqual(server.summary(db)['months'][0]['spent'], 2550.0)
+
     def test_corrections_follow_the_merchant(self):
         db = self.db
         server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD BAKERY\nRef 1', '2026-10-01T09:00:00+03:00')

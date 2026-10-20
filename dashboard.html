@@ -109,6 +109,8 @@
   .fix .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
   .fix .check input { width: 18px; height: 18px; accent-color: var(--accent); }
   .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
+  .txn.ignored .who b, .txn.ignored .amount { color: var(--muted); text-decoration: line-through; }
+  .link { border: 0; background: none; padding: 12px 0 4px; color: var(--accent); font-weight: 600; cursor: pointer; }
   .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
   .skeleton { opacity: .5; }
@@ -161,6 +163,7 @@
     <h2>Transactions <span>tap to see SMS or fix</span></h2>
     <div id="review"></div>
     <div id="txns"></div>
+    <div id="ignored"></div>
   </section>
   <div class="toast" id="toast" role="status" hidden></div>
 </main>
@@ -181,7 +184,8 @@ const cache = {
 // Session expired or signed out elsewhere: back to the login page.
 const api = url => fetch(url).then(r => r.status === 401 ? (cache.clear(), location.href = '/login', new Promise(() => {})) : r.text());
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
-const state = { month: '', currency: '' };
+const IGNORED = 'Ignored';
+const state = { month: '', currency: '', showIgnored: false };
 
 async function load() {
   const key = `${state.month}|${state.currency}`, cached = cache.get(key);
@@ -192,7 +196,8 @@ async function load() {
 }
 
 function render(s) {
-  const txns = s.transactions;
+  // Ignored ones are left out of everything and listed separately, so they can be brought back.
+  const txns = s.transactions.filter(t => t.category !== IGNORED), ignored = s.transactions.filter(t => t.category === IGNORED);
   Object.assign(state, { month: s.month, currency: s.currency });
   const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = n => `${s.currency} ${num.format(n)}`;
@@ -254,23 +259,30 @@ function render(s) {
   const yest = new Date(today); yest.setDate(today.getDate() - 1);
   const dayLabel = d => d === iso(today) ? 'Today' : d === iso(yest) ? 'Yesterday'
     : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const row = (t, withDate) => {
+    const unsure = t.category === 'Uncategorized', ignored = t.category === IGNORED;
+    const options = s.categories.map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" ${unsure ? 'data-unsure' : ''}>` +
+      `<summary><span class="emoji" aria-hidden="true">${ignored ? '🚫' : icon(t.category)}</span>` +
+      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? 'Ignored, not counted' : esc(t.category)} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small></span>` +
+      `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
+      `<pre>${esc(t.body)}</pre>` +
+      `<form class="fix"><label>Category<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
+      `<option value="__new">+ New category…</option><option value="${IGNORED}" ${ignored ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
+      `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
+      (t.merchant ? `<label class="check"><input type="checkbox" name="all" checked>Apply to all from ${esc(t.merchant)}, including future SMS</label>` : '') +
+      `<div><button>Save</button></div></form></details>`;
+  };
   let lastDay = '';
   $('txns').innerHTML = txns.map(t => {
     const day = t.received_at.slice(0, 10), header = day !== lastDay ? `<div class="day">${dayLabel(day)}</div>` : '';
     lastDay = day;
-    const unsure = t.category === 'Uncategorized';
-    const options = [...s.categories].map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
-    return header + `<details class="txn" data-id="${t.id}" data-merchant="${esc(t.merchant)}" ${unsure ? 'data-unsure' : ''}>` +
-      `<summary><span class="emoji" aria-hidden="true">${icon(t.category)}</span>` +
-      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : esc(t.category)} · ${t.received_at.slice(11, 16)}</small></span>` +
-      `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
-      `<pre>${esc(t.body)}</pre>` +
-      `<form class="fix"><label>Category<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
-      `<option value="__new">+ New category…</option></select></label>` +
-      `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
-      (t.merchant ? `<label class="check"><input type="checkbox" name="all" checked>Always use this for ${esc(t.merchant)}</label>` : '') +
-      `<div><button>Save</button></div></form></details>`;
+    return header + row(t, false);
   }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
+  $('ignored').innerHTML = ignored.length
+    ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} ignored</button>` +
+      (state.showIgnored ? ignored.map(t => row(t, true)).join('') : '')
+    : '';
   const unsure = txns.filter(t => t.category === 'Uncategorized').length;
   $('review').innerHTML = unsure ? `<div class="review"><span>${unsure} transaction${unsure > 1 ? 's' : ''} this month need${unsure > 1 ? '' : 's'} a category.</span><button type="button" id="review-next">Review</button></div>` : '';
 }
@@ -288,11 +300,16 @@ function toast(text) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('toast').hidden = true; }, 3500);
 }
 
+$('ignored').addEventListener('click', e => {
+  if (e.target.id === 'toggle-ignored') { state.showIgnored = !state.showIgnored; load(); }
+});
 $('review').addEventListener('click', e => { if (e.target.id === 'review-next') reviewNext(); });
-$('txns').addEventListener('change', e => {
+// Listen on the document so rows in both the main list and the ignored list work.
+document.addEventListener('change', e => {
   if (e.target.name === 'category') e.target.form.querySelector('[name=custom]').parentElement.hidden = e.target.value !== '__new';
 });
-$('txns').addEventListener('submit', async e => {
+document.addEventListener('submit', async e => {
+  if (!e.target.matches('form.fix')) return;  // leave the sign-out form alone
   e.preventDefault();
   const form = e.target, row = form.closest('details');
   const chosen = form.category.value === '__new' ? form.custom.value.trim() : form.category.value;
@@ -303,7 +320,9 @@ $('txns').addEventListener('submit', async e => {
     body: JSON.stringify({ id: Number(row.dataset.id), category: chosen, whole_merchant: all }) });
   if (r.status === 401) { location.href = '/login'; return; }
   if (!r.ok) { toast('Could not save. Try again.'); form.querySelector('button').disabled = false; return; }
-  toast(all ? `Saved. ${row.dataset.merchant} is now ${chosen}, including future SMS.` : `Saved as ${chosen}.`);
+  toast(chosen === IGNORED
+    ? (all ? `Ignored. Future SMS from ${row.dataset.merchant} will be ignored too.` : 'Ignored. It no longer counts.')
+    : (all ? `Saved. ${row.dataset.merchant} is now ${chosen}, including future SMS.` : `Saved as ${chosen}.`));
   const wasReviewing = row.hasAttribute('data-unsure');
   await load();
   if (wasReviewing) reviewNext();  // keep going through the ones that still need a category

@@ -44,6 +44,7 @@ FAILURES_SCHEMA = 'CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, 
 LEARNED_SCHEMAS = ['CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL)',
                    'CREATE TABLE IF NOT EXISTS txn_categories (txn_id BIGINT PRIMARY KEY, category TEXT NOT NULL)']
 MAX_CATEGORY = 40
+IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
 
 
 class DB:
@@ -194,12 +195,14 @@ def summary(db, month=None, currency=None):
 
     months = defaultdict(lambda: {'spent': 0, 'received': 0})
     for t in rows:
-        months[t['received_at'][:7]]['spent' if t['direction'] == 'debit' else 'received'] += round(t['amount'] * 100)
+        totals = months[t['received_at'][:7]]  # the month is listed even if everything in it is ignored
+        if t['category'] != IGNORED:
+            totals['spent' if t['direction'] == 'debit' else 'received'] += round(t['amount'] * 100)
     month = month or max(months, default=datetime.now(timezone.utc).strftime('%Y-%m'))
 
     by_category, by_merchant = defaultdict(int), defaultdict(int)
     for t in rows:
-        if t['received_at'].startswith(month) and t['direction'] == 'debit':
+        if t['received_at'].startswith(month) and t['direction'] == 'debit' and t['category'] != IGNORED:
             minor = round(t['amount'] * 100)
             by_category[t['category']] += minor
             by_merchant[t['merchant'] or '(unknown)'] += minor
@@ -213,8 +216,8 @@ def summary(db, month=None, currency=None):
         'by_category': major(by_category),
         'top_merchants': dict(list(major(by_merchant).items())[:10]),
         # Choices for the category editor: the built-in ones plus any you invented.
-        'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized'}),
-        # The month's transactions too, so the dashboard needs one request instead of two.
+        'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized', IGNORED}),
+        # The month's transactions too (ignored ones included, so they can be un-ignored), in one request.
         'transactions': [t for t in rows if t['received_at'].startswith(month)],
     }
 
