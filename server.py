@@ -152,7 +152,9 @@ def transactions(db, month=None, currency=None):
         else:
             learned[r['category']].append(r['merchant'])
     overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
-    rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC')
+    # id breaks ties: rows with the same timestamp must come back in the same order every time,
+    # or the dashboard sees "changed" data on each load and redraws under your finger.
+    rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC, id DESC')
     own = own_transfers(rows, overrides)
     return [{
         'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],

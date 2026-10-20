@@ -205,13 +205,25 @@ const state = { month: '', currency: '', showIgnored: false, category: '', merch
 const ruleKey = t => t.merchant ? t.merchant.trim().toLowerCase()
   : 'sms:' + t.body.toLowerCase().replace(/[\d٠-٩][\d٠-٩,.:/*-]*/g, '#').split(/\s+/).filter(Boolean).join(' ');
 
-async function load() {
+let pending = null;  // fresh data that arrived while a transaction was open
+
+async function load(force = false) {
+  pending = null;
   const key = `${state.month}|${state.currency}`, cached = cache.get(key);
   if (cached) render(JSON.parse(cached));
   const fresh = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
   cache.set(key, fresh);
-  if (fresh !== cached) render(JSON.parse(fresh));  // unchanged: leave the screen alone (keeps an open row open)
+  if (fresh === cached) return;  // unchanged: leave the screen alone
+  // A redraw would snap an open transaction (and its category menu) shut, so wait until it's closed.
+  if (!force && document.querySelector('details.txn[open]')) { pending = fresh; return; }
+  render(JSON.parse(fresh));
 }
+
+document.addEventListener('toggle', e => {
+  if (pending && e.target.matches('details.txn') && !document.querySelector('details.txn[open]')) {
+    const s = pending; pending = null; render(JSON.parse(s));
+  }
+}, true);
 
 function render(s) {
   // Ignored ones are left out of everything and listed separately, so they can be brought back.
@@ -382,7 +394,7 @@ document.addEventListener('submit', async e => {
   leaving.forEach(d => d.classList.add('leaving'));
   await new Promise(res => setTimeout(res, 250));
   leaving.forEach(d => d.remove());
-  await load();
+  await load(true);  // the save itself changed the data: show it now
   if (wasReviewing) reviewNext();  // keep going through the ones that still need a category
 });
 
