@@ -24,6 +24,7 @@ from parse import categorize, merchant_of, parse
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
 MAX_BODY = 16 * 1024
+VERSION = os.environ.get('VERCEL_GIT_COMMIT_SHA', 'local')[:7]  # which commit is live; Vercel sets this
 MAX_IMPORT_BODY, MAX_IMPORT_BATCH = 2 * 1024 * 1024, 500  # one upload batch from the import page
 SESSION_DAYS = 30
 PAGES = {'/': 'dashboard.html', '/import': 'import.html'}
@@ -242,7 +243,7 @@ def health(db, database_ms):
     server_region = os.environ.get('VERCEL_REGION', 'local')
     best = VERCEL_REGION_FOR.get(db_region)
     return {
-        'server_region': server_region, 'database_region': db_region, 'database_ms': database_ms,
+        'version': VERSION, 'server_region': server_region, 'database_region': db_region, 'database_ms': database_ms,
         'reused_connection': db.reused,
         'advice': f'Run the server in {best} (vercel.json "regions") to sit next to the database.'
                   if best and best != server_region else 'Server and database are in the same place.',
@@ -284,6 +285,7 @@ def summary(db, month=None, currency=None):
         'transactions': [t for t in rows if t['received_at'].startswith(month)],
         # Every month's uncategorized ones, newest first, for the "Needs a category" list.
         'to_review': [t for t in rows if t['category'] == 'Uncategorized'],
+        'version': VERSION,
     }
 
 

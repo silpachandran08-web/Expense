@@ -124,6 +124,8 @@
   .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
   .txn.ignored .who b, .txn.ignored .amount { color: var(--muted); text-decoration: line-through; }
   .link { border: 0; background: none; padding: 12px 0 4px; color: var(--accent); font-weight: 600; cursor: pointer; }
+  .stale { background: var(--bad); color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin: 0; }
+  .version { text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
   .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
   .skeleton { opacity: .5; }
@@ -144,6 +146,7 @@
     </form>
   </div>
 
+  <p class="stale" id="stale" role="alert" hidden></p>
   <section class="hero skeleton" id="hero" aria-live="polite">
     <div class="month-nav">
       <button id="prev" aria-label="Previous month">‹</button>
@@ -180,6 +183,7 @@
     <div id="ignored"></div>
   </section>
   <div class="toast" id="toast" role="status" hidden></div>
+  <p class="version" id="version"></p>
 </main>
 <script>
 const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Transport': '🚗', 'Travel': '✈️', 'Bills & Utilities': '💡',
@@ -196,7 +200,11 @@ const cache = {
   clear: () => { try { Object.keys(localStorage).filter(k => k.startsWith(CACHE)).forEach(k => localStorage.removeItem(k)); } catch {} },
 };
 // Session expired or signed out elsewhere: back to the login page.
-const api = url => fetch(url).then(r => r.status === 401 ? (cache.clear(), location.href = '/login', new Promise(() => {})) : r.text());
+const api = url => fetch(url).then(r => {
+  if (r.status === 401) { cache.clear(); location.href = '/login'; return new Promise(() => {}); }
+  if (!r.ok) throw new Error(`the server answered ${r.status}`);
+  return r.text();
+});
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
 const IGNORED = 'Ignored', OWN_TRANSFER = 'Own transfer', NOT_COUNTED = new Set([IGNORED, OWN_TRANSFER]);
 const state = { month: '', currency: '', showIgnored: false, category: '', merchant: null };
@@ -211,7 +219,16 @@ async function load(force = false) {
   pending = null;
   const key = `${state.month}|${state.currency}`, cached = cache.get(key);
   if (cached) render(JSON.parse(cached));
-  const fresh = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
+  let fresh;
+  try {
+    fresh = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
+    JSON.parse(fresh);
+  } catch (err) {  // never pass off the saved copy as current
+    $('stale').hidden = false;
+    $('stale').textContent = `Couldn't refresh (${err.message}). ${cached ? 'You are seeing the last saved copy.' : ''} Pull down to try again.`;
+    return;
+  }
+  $('stale').hidden = true;
   cache.set(key, fresh);
   if (fresh === cached) return;  // unchanged: leave the screen alone
   // A redraw would snap an open transaction (and its category menu) shut, so wait until it's closed.
@@ -226,6 +243,7 @@ document.addEventListener('toggle', e => {
 }, true);
 
 function render(s) {
+  $('version').textContent = `Version ${s.version || 'unknown'}`;
   // Ignored ones are left out of everything and listed separately, so they can be brought back.
   // Ignored ones are hidden behind a link; uncategorized ones sit in "Needs a category" until you sort them.
   const counted = s.transactions.filter(t => !NOT_COUNTED.has(t.category));
