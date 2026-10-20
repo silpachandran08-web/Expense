@@ -131,7 +131,9 @@ class StoreMixin:
         first = next(t for t in server.transactions(db) if t['body'].endswith('Ref 1'))
         self.assertEqual(first['category'], 'Uncategorized')
 
+        self.assertEqual(len(server.summary(db)['to_review']), 2)  # both bakery visits; NOON is Shopping already
         server.set_category(db, first['id'], 'Food', True)  # "always use this for ABU SAAD BAKERY"
+        self.assertEqual(server.summary(db)['to_review'], [])  # saving one cleared both from the list
         server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 8.00\nAt: ABU SAAD BAKERY\nRef 3', '2026-10-04T09:00:00+03:00')
         self.assertEqual([c for k, c in cats().items() if k.startswith('Ref')], ['Food', 'Food', 'Food'])  # past and future
 

@@ -219,6 +219,8 @@ def summary(db, month=None, currency=None):
         'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized', IGNORED}),
         # The month's transactions too (ignored ones included, so they can be un-ignored), in one request.
         'transactions': [t for t in rows if t['received_at'].startswith(month)],
+        # Every month's uncategorized ones, newest first, for the "Needs a category" list.
+        'to_review': [t for t in rows if t['category'] == 'Uncategorized'],
     }
 
 
