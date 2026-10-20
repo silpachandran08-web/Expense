@@ -39,6 +39,7 @@
   /* App bar */
   .appbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; min-height: 56px; padding: env(safe-area-inset-top) 4px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
   .appbar.drill { padding-left: 4px; }
+  .appbar.drill #currency { display: none; }  /* a detail page keeps the currency it was opened in; the title needs the room */
   .titles { flex: 1; min-width: 0; }
   .titles h1 { font-size: 20px; line-height: 1.2; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .drill .titles h1 { font-size: 17px; }
