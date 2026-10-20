@@ -61,7 +61,15 @@
   @media (min-width: 680px) { .grid { grid-template-columns: 1fr 1fr; } }
 
   /* Category bars: labelled, so one hue is enough */
-  .cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .cat { border: 0; background: none; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); border-radius: 10px; text-align: left; cursor: pointer; }
+  .cat:hover { background: var(--surface-2); }
+  .cat[aria-pressed="true"] { background: var(--accent-soft); }
+  .cat-top .go { color: var(--muted); font-size: 16px; line-height: 1; }
+  .filter { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .filter span { flex: 1; min-width: 0; }
+  .filter button { border: 0; background: var(--surface); border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
+  .txn small .pen { color: var(--accent); }
   .cat-top { display: flex; align-items: center; gap: 10px; font-size: 14px; }
   .cat-top .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cat-top .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -163,9 +171,10 @@
     </section>
   </div>
 
-  <section class="card">
+  <section class="card" id="txn-card">
     <h2>Transactions <span>tap to see SMS or fix</span></h2>
     <div id="todo"></div>
+    <div id="filter"></div>
     <div id="txns"></div>
     <div id="ignored"></div>
   </section>
@@ -189,7 +198,7 @@ const cache = {
 const api = url => fetch(url).then(r => r.status === 401 ? (cache.clear(), location.href = '/login', new Promise(() => {})) : r.text());
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
 const IGNORED = 'Ignored';
-const state = { month: '', currency: '', showIgnored: false };
+const state = { month: '', currency: '', showIgnored: false, category: '' };
 
 async function load() {
   const key = `${state.month}|${state.currency}`, cached = cache.get(key);
@@ -239,9 +248,10 @@ function render(s) {
   $('cat-total').textContent = cats.length ? `${cats.length} categories` : '';
   $('cats').innerHTML = cats.map(([c, v]) => {
     const pct = totalSpent ? v / totalSpent * 100 : 0;
-    return `<li><div class="cat-top"><span class="emoji" aria-hidden="true">${icon(c)}</span><span class="name">${esc(c)}</span>` +
-      `<span class="amt">${money(v)}</span><span class="pct">${Math.round(pct)}%</span></div>` +
-      `<div class="track" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div></li>`;
+    return `<li><button type="button" class="cat" data-cat="${esc(c)}" aria-pressed="${c === state.category}" aria-label="Show ${esc(c)} transactions">` +
+      `<div class="cat-top"><span class="emoji" aria-hidden="true">${icon(c)}</span><span class="name">${esc(c)}</span>` +
+      `<span class="amt">${money(v)}</span><span class="pct">${Math.round(pct)}%</span><span class="go" aria-hidden="true">›</span></div>` +
+      `<div class="track" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div></button></li>`;
   }).join('') || '<li class="empty">No spending this month</li>';
 
   // Trend: last 6 months up to the selected one; tap a bar to open that month.
@@ -270,27 +280,32 @@ function render(s) {
     const options = s.categories.map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
     return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" ${unsure ? 'data-unsure' : ''}>` +
       `<summary><span class="emoji" aria-hidden="true">${ignored ? '🚫' : icon(t.category)}</span>` +
-      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? 'Ignored, not counted' : esc(t.category)} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small></span>` +
+      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? 'Ignored, not counted' : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small></span>` +
       `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
       `<pre>${esc(t.body)}</pre>` +
-      `<form class="fix"><label>Category<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
+      `<form class="fix"><label>${unsure ? 'Category' : 'Wrong category? Choose the right one'}<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
       `<option value="__new">+ New category…</option><option value="${IGNORED}" ${ignored ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
       `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
       (t.merchant ? `<label class="check"><input type="checkbox" name="all" checked>Apply to all from ${esc(t.merchant)}, including future SMS</label>` : '') +
       `<div><button>Save</button></div></form></details>`;
   };
+  // Tapping a category in "Where it went" narrows the list to it.
+  const shown = state.category ? txns.filter(t => t.category === state.category) : txns;
+  const shownTotal = shown.reduce((a, t) => a + (t.direction === 'debit' ? t.amount : 0), 0);
+  $('filter').innerHTML = state.category ? `<div class="filter"><span>${icon(state.category)} <b>${esc(state.category)}</b> · ` +
+    `${shown.length} transaction${shown.length === 1 ? '' : 's'} · ${money(shownTotal)}</span><button type="button" id="clear-filter">✕ Show all</button></div>` : '';
   let lastDay = '';
-  $('txns').innerHTML = txns.map(t => {
+  $('txns').innerHTML = shown.map(t => {
     const day = t.received_at.slice(0, 10), header = day !== lastDay ? `<div class="day">${dayLabel(day)}</div>` : '';
     lastDay = day;
     return header + row(t, false);
-  }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
+  }).join('') || (state.category ? `<div class="empty"><b>No ${esc(state.category)} in ${monthName(s.month)}</b></div>` : '') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
   $('ignored').innerHTML = ignored.length
     ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} ignored</button>` +
       (state.showIgnored ? ignored.map(t => row(t, true)).join('') : '')
     : '';
   const todo = s.to_review;
-  $('todo').innerHTML = todo.length ? `<div class="todo"><h3>Needs a category · ${todo.length}</h3>` +
+  $('todo').innerHTML = todo.length && !state.category ? `<div class="todo"><h3>Needs a category · ${todo.length}</h3>` +
     `<p>Tap one, pick a category and save. It moves to your list.</p>${todo.map(t => row(t, true)).join('')}</div>` : '';
 }
 
@@ -307,6 +322,14 @@ function toast(text) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('toast').hidden = true; }, 3500);
 }
 
+$('cats').addEventListener('click', e => {
+  const c = e.target.closest('.cat')?.dataset.cat;
+  if (c === undefined) return;
+  state.category = state.category === c ? '' : c;
+  load();
+  $('txn-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('filter').addEventListener('click', e => { if (e.target.id === 'clear-filter') { state.category = ''; load(); } });
 $('ignored').addEventListener('click', e => {
   if (e.target.id === 'toggle-ignored') { state.showIgnored = !state.showIgnored; load(); }
 });
@@ -332,7 +355,8 @@ document.addEventListener('submit', async e => {
   const wasReviewing = row.hasAttribute('data-unsure');
   // Saved ones leave the list right away (with "apply to all", every entry from that merchant does).
   const merchant = row.dataset.merchant;
-  const leavesList = wasReviewing || chosen === IGNORED;  // a re-sorted row in the main list just stays
+  // A re-sorted row stays in the full list, but leaves a category view it no longer belongs to.
+  const leavesList = wasReviewing || chosen === IGNORED || (state.category && chosen !== state.category);
   const leaving = !leavesList ? [] : all && merchant
     ? [...document.querySelectorAll('details.txn')].filter(d => d.dataset.merchant === merchant && d.closest('#todo') === row.closest('#todo'))
     : [row];
@@ -345,7 +369,7 @@ document.addEventListener('submit', async e => {
 
 $('currency').addEventListener('click', e => {
   const c = e.target.closest('button')?.dataset.c;
-  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '' }); load(); }
+  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '', category: '' }); load(); }
 });
 $('trend').addEventListener('click', e => {
   const m = e.target.closest('button')?.dataset.m;
