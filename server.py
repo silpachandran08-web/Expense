@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
-from parse import categorize, parse
+from parse import categorize, merchant_of, parse
 
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
@@ -145,27 +145,43 @@ def transactions(db, month=None, currency=None):
     # Categories are computed on read, so a correction or a rules.json edit re-categorizes history too.
     # Order: your correction for this transaction > your rule for its merchant > rules.json keywords.
     rules = json.loads(RULES.read_text(encoding='utf-8'))
-    learned, by_wording = defaultdict(list), {}
-    for r in db.run('SELECT merchant, category FROM merchant_categories'):
-        if r['merchant'].startswith(WORDING):
-            by_wording[r['merchant']] = r['category']
-        else:
-            learned[r['category']].append(r['merchant'])
+    saved = {r['merchant']: r['category'] for r in db.run('SELECT merchant, category FROM merchant_categories')}
+    by_wording = {k: c for k, c in saved.items() if k.startswith(WORDING)}
+    for_merchant = rule_finder({k: c for k, c in saved.items() if not k.startswith(WORDING)})
     overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
     # id breaks ties: rows with the same timestamp must come back in the same order every time,
     # or the dashboard sees "changed" data on each load and redraws under your finger.
     rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC, id DESC')
     own = own_transfers(rows, overrides)
-    return [{
-        'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
-        'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
-        'merchant': r['merchant'],
-        'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
-                    or (r['merchant'] and categorize(r['merchant'], '', learned, None))
-                    or (not r['merchant'] and by_wording.get(wording(r['body'])))
-                    or categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
-    } for r in rows
-        if (not month or r['received_at'].startswith(month)) and (not currency or r['currency'] == currency)]
+    result = []
+    for r in rows:
+        if (month and not r['received_at'].startswith(month)) or (currency and r['currency'] != currency):
+            continue
+        merchant = merchant_of(r['body'])
+        result.append({
+            'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
+            'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
+            'merchant': merchant,
+            'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
+                        or (merchant and for_merchant(merchant))
+                        or (not merchant and by_wording.get(wording(r['body'])))
+                        or categorize(merchant, r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
+        })
+    return result
+
+
+def rule_finder(rules):
+    """Look up your rule for a merchant: its exact name, else the longest saved name found inside it, so a rule
+    for 'JARIR MEDICAL CO' beats one for 'JARIR' whatever order they were saved in. Memoized per merchant."""
+    found = {}
+
+    def find(merchant):
+        m = merchant.strip().lower()
+        if m not in found:
+            inside = [k for k in rules if re.search(r'\b' + re.escape(k) + r'\b', m)]
+            found[m] = rules.get(m) or (rules[max(inside, key=len)] if inside else None)
+        return found[m]
+    return find
 
 
 def own_transfers(rows, overrides):
@@ -201,10 +217,10 @@ def wording(body):
 def set_category(db, txn_id, category, whole_merchant):
     """Save a correction. With whole_merchant, every past and future transaction from that merchant follows it;
     for a message with no merchant, every message with the same wording does."""
-    found = db.run('SELECT merchant, body FROM transactions WHERE id = :id', id=txn_id)
+    found = db.run('SELECT body FROM transactions WHERE id = :id', id=txn_id)
     if not found:
         raise KeyError('no such transaction')
-    merchant = found[0]['merchant'].strip().lower() or wording(found[0]['body'])
+    merchant = merchant_of(found[0]['body']).strip().lower() or wording(found[0]['body'])
     if whole_merchant:
         db.run('INSERT INTO merchant_categories (merchant, category) VALUES (:m, :c) '
                'ON CONFLICT (merchant) DO UPDATE SET category = excluded.category', m=merchant, c=category)
@@ -444,7 +460,9 @@ def app(environ, start_response):
                 set_category(db, *correction)
             except KeyError:
                 return respond('404 Not Found', {'error': 'no such transaction'})
-            return respond('200 OK', {'saved': True})
+            # What it now shows as, so the page can say so if another rule still wins.
+            now = next(t['category'] for t in transactions(db) if t['id'] == correction[0])
+            return respond('200 OK', {'saved': True, 'category': now})
         if path == '/api/import':
             stored = store_many(db, batch)
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})

@@ -18,7 +18,7 @@ CREDIT = re.compile(r'\b(?:credited|received|deposited|deposit|incoming|refunded
 SKIP = re.compile(
     r'\b(?:otp|one[- ]time password|verification code|passcode|will be debited|is due|due on|requested|pre-?approved|offer)\b'
     r'|رمز التحقق|رمز التفعيل|كلمة المرور|لمرة واحدة|مستحق', re.I)
-_END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using|في)\b|[,;(\n]|\.(?=\s|$)|$)'  # a dot ends the name only as a full stop, so "NOON.COM" stays whole
+_END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using|for|في)\b|[,;(\n]|\.(?=\s|$)|$)'  # a dot ends the name only as a full stop, so "NOON.COM" stays whole
 MERCHANT = [
     re.compile(r'\bVPA\s+([\w.\-]+@[\w.\-]+)', re.I),
     re.compile(r'\b(?:at|to|towards|trf to|info|لدى|إلى|الى)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
@@ -54,6 +54,11 @@ def parse(body):
         'direction': 'debit' if is_debit else 'credit',
         'merchant': _merchant(body),
     }
+
+
+def merchant_of(body):
+    """The merchant name in an SMS, worked out fresh each time so parser fixes reach old messages too."""
+    return _merchant(body.translate(ARABIC_DIGITS))
 
 
 def _merchant(body):

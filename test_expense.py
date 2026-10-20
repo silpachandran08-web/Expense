@@ -71,6 +71,17 @@ class ParseTest(unittest.TestCase):
     def test_account_number_not_amount(self):
         self.assertEqual(parse('A/c XX1234 debited Rs 500 at DMART')['amount_minor'], 50000)
 
+    def test_merchant_stops_before_for(self):
+        # "for SAR ..." is the amount, not part of the name; otherwise each purchase is a different "merchant".
+        self.assertEqual(parse('Online purchase at Amazon SA for SAR 5,699.00 using card *1234')['merchant'], 'Amazon SA')
+        self.assertEqual(parse('Purchase at Temu.com for SAR 198.85 on 17/10')['merchant'], 'Temu.com')
+
+    def test_most_specific_rule_wins(self):
+        for order in (['jarir', 'jarir medical co'], ['jarir medical co', 'jarir']):
+            rules = {k: {'jarir': 'Shopping', 'jarir medical co': 'Health'}[k] for k in order}
+            find = server.rule_finder(rules)
+            self.assertEqual((find('JARIR MEDICAL CO'), find('JARIR BOOKSTORE'), find('PANDA')), ('Health', 'Shopping', None))
+
     def test_whole_word_categories(self):
         self.assertEqual(categorize('MOTOROLA STORE', '', RULES), 'Uncategorized')  # not "ola" → Transport
 
@@ -302,7 +313,8 @@ class AppTest(unittest.TestCase):
         self.call('POST', '/sms', sms)
         txn = json.loads(self.call('GET', '/api/transactions')[1])[0]
         fix = lambda **kw: self.call('POST', '/api/category', json.dumps({'id': txn['id'], **kw}).encode())[0]
-        self.assertEqual(fix(category='Food', whole_merchant=True), 200)
+        status = self.call('POST', '/api/category', json.dumps({'id': txn['id'], 'category': 'Food', 'whole_merchant': True}).encode())
+        self.assertEqual((status[0], json.loads(status[1])['category']), (200, 'Food'))  # reports what it shows as now
         self.assertEqual(json.loads(self.call('GET', '/api/transactions')[1])[0]['category'], 'Food')
         self.assertEqual(fix(category='Uncategorized'), 400)
         self.assertEqual(fix(category='x' * 41), 400)

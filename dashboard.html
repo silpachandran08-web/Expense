@@ -380,6 +380,12 @@ document.addEventListener('submit', async e => {
     body: JSON.stringify({ id: Number(row.dataset.id), category: chosen, whole_merchant: all }) });
   if (r.status === 401) { location.href = '/login'; return; }
   if (!r.ok) { toast('Could not save. Try again.'); form.querySelector('button').disabled = false; return; }
+  const now = (await r.json()).category;
+  if (now !== chosen) {  // saved, but something stronger still decides this one: say so instead of pretending
+    toast(`Saved, but this one still shows as ${now}. Open it again and untick "apply to all" to change just this one.`);
+    await load(true);
+    return;
+  }
   const done = chosen === OWN_TRANSFER ? 'Marked as own transfer' : 'Ignored';
   toast(NOT_COUNTED.has(chosen)
     ? (all ? `${done}, with ${row.dataset.merchant || 'similar messages'} from now on too.` : `${done}. It no longer counts.`)
