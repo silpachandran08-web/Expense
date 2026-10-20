@@ -128,6 +128,7 @@
   .phone-last { margin: 0 0 8px; font-size: 14px; }
   .delivery { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; color: var(--text-2); }
   .delivery .bad { color: var(--bad); font-weight: 600; }
+  .search { width: 100%; font: inherit; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--text); }
   .stale { background: var(--bad); color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin: 0; }
   .version { text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
   .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
@@ -183,6 +184,7 @@
 
   <section class="card" id="txn-card">
     <h2>Transactions <span>tap to see SMS or fix</span></h2>
+    <input type="search" id="search" class="search" placeholder="🔎 Search all SMS: merchant, amount, card, any word" aria-label="Search all SMS" autocomplete="off" enterkeyhint="search">
     <div id="todo"></div>
     <div id="filter"></div>
     <div id="txns"></div>
@@ -218,7 +220,7 @@ const api = url => fetch(url).then(r => {
 });
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
 const IGNORED = 'Ignored', OWN_TRANSFER = 'Own transfer', NOT_COUNTED = new Set([IGNORED, OWN_TRANSFER]);
-const state = { month: '', currency: '', showIgnored: false, category: '', merchant: null, account: '' };
+const state = { month: '', currency: '', showIgnored: false, category: '', merchant: null, account: '', search: '', results: null, last: null };
 // What a saved rule applies to, worked out the same way as the server: the merchant, or for a message
 // with no merchant, its wording without numbers. Used to clear matching rows from the screen at once.
 const ruleKey = t => t.merchant ? t.merchant.trim().toLowerCase()
@@ -259,6 +261,7 @@ const ago = iso => {
 };
 
 function render(s) {
+  state.last = s;
   $('version').textContent = `Version ${s.version || 'unknown'}`;
   // Receipts for what the phone sent, so you can check a message arrived (and what happened to it).
   const deliveries = s.deliveries || [], last = deliveries[0];
@@ -378,7 +381,32 @@ function render(s) {
   const todo = s.to_review;
   $('todo').innerHTML = todo.length && !filtering ? `<div class="todo"><h3>Needs a category · ${todo.length}</h3>` +
     `<p>Tap one, pick a category and save. It moves to your list.</p>${todo.map(t => row(t, true)).join('')}</div>` : '';
+  if (state.results) {  // searching: matches from every month replace this month's list
+    const r = state.results;
+    $('todo').innerHTML = ''; $('ignored').innerHTML = '';
+    $('filter').innerHTML = `<div class="filter"><span>🔎 <b>“${esc(state.search)}”</b> · ${r.count} result${r.count === 1 ? '' : 's'}` +
+      `${r.count > r.results.length ? ` (newest ${r.results.length} shown)` : ''} · ${money(r.spent)} spent</span><button type="button" id="clear-search">✕ Clear</button></div>`;
+    $('txns').innerHTML = r.results.map(t => row(t, true)).join('')
+      || `<div class="empty"><b>No SMS match “${esc(state.search)}”</b>Try one word, a merchant name, an amount or a card's last 4 digits.</div>`;
+  }
 }
+
+let searchTimer;
+async function runSearch() {
+  const q = $('search').value.trim();
+  state.search = q;
+  if (!q) { state.results = null; if (state.last) render(state.last); return; }
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&currency=${state.currency}`);
+    if (r.status === 401) { location.href = '/login'; return; }
+    if (!r.ok) throw new Error(r.status);
+    const found = await r.json();
+    if (state.search !== q) return;  // you kept typing; a newer search is on its way
+    state.results = found;
+    render(state.last);
+  } catch { toast('Search failed. Try again.'); }
+}
+$('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 300); });
 
 function reviewNext() {
   const next = document.querySelector('#todo details.txn');
@@ -408,7 +436,10 @@ $('merchants').addEventListener('click', e => {
   load();
   $('txn-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
-$('filter').addEventListener('click', e => { if (e.target.id === 'clear-filter') { Object.assign(state, { category: '', merchant: null, account: '' }); load(); } });
+$('filter').addEventListener('click', e => {
+  if (e.target.id === 'clear-filter') { Object.assign(state, { category: '', merchant: null, account: '' }); load(); }
+  if (e.target.id === 'clear-search') { $('search').value = ''; runSearch(); }
+});
 $('accounts').addEventListener('click', e => {
   const a = e.target.closest('[data-account]')?.dataset.account;
   if (a === undefined) return;
@@ -458,6 +489,7 @@ document.addEventListener('submit', async e => {
   const open = document.querySelector('details.txn[open]')?.dataset.id;  // keep the next one open across the redraw
   cache.set(`${state.month}|${state.currency}`, JSON.stringify(reply.summary));
   render(reply.summary);
+  if (state.search) runSearch();  // refresh the results with the new category
   if (open) document.querySelector(`details.txn[data-id="${open}"]`)?.setAttribute('open', '');
   if (reply.category !== chosen) {  // saved, but something stronger still decides this one: say so instead of pretending
     toast(`Saved, but this one still shows as ${reply.category}. Open it again and untick "apply to all" to change just this one.`);
@@ -471,7 +503,7 @@ document.addEventListener('submit', async e => {
 
 $('currency').addEventListener('click', e => {
   const c = e.target.closest('button')?.dataset.c;
-  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '', category: '', merchant: null, account: '' }); load(); }
+  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '', category: '', merchant: null, account: '' }); load().then(() => state.search && runSearch()); }
 });
 $('trend').addEventListener('click', e => {
   const m = e.target.closest('button')?.dataset.m;

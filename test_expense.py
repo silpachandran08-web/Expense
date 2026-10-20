@@ -332,6 +332,20 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.call('POST', '/api/category', form, content_type='application/x-www-form-urlencoded')[0], 400)
         self.assertEqual(self.call('POST', '/api/category', b'{}', auth='')[0], 401)
 
+    def test_search_all_months(self):
+        for body, at in ((SAMPLES[6][0], '2026-08-02T10:00:00+03:00'), (SAMPLES[7][0], '2026-10-05T10:00:00+03:00'),
+                         (SAMPLES[8][0], '2026-09-17T10:00:00+03:00'), (SAMPLES[0][0], '2026-10-01T10:00:00+05:30')):
+            self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body, 'received_at': at}).encode())
+        find = lambda q, cur='SAR': json.loads(self.call('GET', '/api/search', query=urlencode({'q': q, 'currency': cur}))[1])
+        self.assertEqual([t['merchant'] for t in find('hungerstation')['results']], ['HUNGERSTATION'])  # August, not this month
+        self.assertEqual(find('card 5678')['count'], 2)                     # all words must match: NOON and the Arabic PANDA SMS
+        self.assertEqual(find('٨٧٫٢٥')['results'][0]['merchant'], 'PANDA')  # Arabic digits find Arabic-digit SMS
+        self.assertEqual(find('87.25')['count'], 1)                         # and Western digits do too
+        self.assertEqual((find('swiggy')['count'], find('swiggy', 'INR')['count']), (0, 1))  # one currency at a time
+        self.assertEqual(find('groceries')['spent'], 87.25)
+        self.assertEqual(find('   ')['count'], 0)
+        self.assertEqual(self.call('GET', '/api/search', query='q=panda', auth='')[0], 401)
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')

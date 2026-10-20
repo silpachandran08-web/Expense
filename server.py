@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
-from parse import account_of, categorize, compile_rules, merchant_of, parse
+from parse import ARABIC_DIGITS, account_of, categorize, compile_rules, merchant_of, parse
 
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
@@ -270,6 +270,22 @@ def health(db, database_ms):
     }
 
 
+SEARCH_LIMIT = 200
+
+
+def search(db, q, currency=None):
+    """Transactions from every month whose SMS, merchant, category or card contain all the words in q
+    (case-insensitive, Arabic or Western digits), newest first."""
+    words = q.lower().translate(ARABIC_DIGITS).split()
+    if not words:
+        return {'results': [], 'count': 0, 'spent': 0}
+    hits = [t for t in transactions(db, currency=currency)
+            if all(w in ' '.join((t['body'], t['merchant'], t['category'], t['account'])).lower().translate(ARABIC_DIGITS)
+                   for w in words)]
+    spent = sum(t['amount'] for t in hits if t['direction'] == 'debit' and t['category'] not in NOT_COUNTED)
+    return {'results': hits[:SEARCH_LIMIT], 'count': len(hits), 'spent': round(spent, 2)}
+
+
 def summary(db, month=None, currency=None, every=None):
     every = transactions(db) if every is None else every
     currencies = sorted({t['currency'] for t in every})
@@ -481,7 +497,7 @@ def app(environ, start_response):
             correction = read_category(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
-    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health')}:
+    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health'), ('GET', '/api/search')}:
         return respond('404 Not Found', {'error': 'not found'})
 
     started = time.perf_counter()
@@ -510,6 +526,8 @@ def app(environ, start_response):
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})
         if path == '/api/summary':
             return respond('200 OK', summary(db, query.get('month'), query.get('currency')))
+        if path == '/api/search':
+            return respond('200 OK', search(db, query.get('q', ''), query.get('currency')))
         return respond('200 OK', transactions(db, query.get('month'), query.get('currency')))
     finally:
         db.close()
