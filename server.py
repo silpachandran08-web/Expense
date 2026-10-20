@@ -23,7 +23,9 @@ from parse import categorize, parse
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
 MAX_BODY = 16 * 1024
+MAX_IMPORT_BODY, MAX_IMPORT_BATCH = 2 * 1024 * 1024, 500  # one upload batch from the import page
 SESSION_DAYS = 30
+PAGES = {'/': 'dashboard.html', '/import': 'import.html'}
 MIN_PASSWORD = 6
 MAX_FAILURES, LOCKOUT_SECONDS = 10, 15 * 60  # wrong guesses per IP before it is locked out, and for how long
 
@@ -75,17 +77,29 @@ class DB:
         self.conn.close()
 
 
+def store_many(db, messages):
+    """Parse (sender, body, received_at) messages and insert the new transactions in one statement
+    (one round trip, so a big import stays fast). Returns the stored transactions."""
+    rows = {}
+    for sender, body, received_at in messages:
+        txn = parse(body)
+        if txn:
+            rows.setdefault(body, {**txn, 'sender': sender, 'body': body, 'received_at': received_at})
+    if not rows:
+        return []
+    columns = ('received_at', 'sender', 'body', 'amount_minor', 'currency', 'direction', 'merchant')
+    values = ', '.join('(' + ', '.join(f':{c}{i}' for c in columns) + ')' for i in range(len(rows)))
+    params = {f'{c}{i}': row[c] for i, row in enumerate(rows.values()) for c in columns}
+    inserted = {r['body'] for r in db.run(
+        f'INSERT INTO transactions ({", ".join(columns)}) VALUES {values} ON CONFLICT (body) DO NOTHING RETURNING body', **params)}
+    return [{k: row[k] for k in ('amount_minor', 'currency', 'direction', 'merchant', 'received_at')}
+            for row in rows.values() if row['body'] in inserted]
+
+
 def store_sms(db, sender, body, received_at):
     """Parse and insert one SMS. Returns the stored transaction, or None if it was skipped or a duplicate."""
-    txn = parse(body)
-    if txn is None:
-        return None
-    inserted = db.run(
-        'INSERT INTO transactions (received_at, sender, body, amount_minor, currency, direction, merchant) '
-        'VALUES (:received_at, :sender, :body, :amount_minor, :currency, :direction, :merchant) '
-        'ON CONFLICT (body) DO NOTHING RETURNING id',
-        received_at=received_at, sender=sender, body=body, **txn)
-    return {**txn, 'received_at': received_at} if inserted else None
+    stored = store_many(db, [(sender, body, received_at)])
+    return stored[0] if stored else None
 
 
 def transactions(db, month=None, currency=None):
@@ -200,6 +214,11 @@ def read_sms(environ):
         msg = {k: v[0] for k, v in parse_qs(raw.decode()).items()}
     else:
         msg = json.loads(raw)
+    return clean_message(msg)
+
+
+def clean_message(msg):
+    """(sender, body, received_at) from one message dict; raises ValueError/KeyError/TypeError when it's malformed."""
     sender, body = str(msg['sender']).strip(), str(msg['body']).strip()
     received_at = str(msg.get('received_at') or '').strip()
     if received_at.isdigit():  # epoch milliseconds from the phone; shown in EXPENSE_TZ so months split at local midnight
@@ -208,6 +227,18 @@ def read_sms(environ):
     received_at = received_at or datetime.now(timezone.utc).isoformat(timespec='seconds')
     datetime.fromisoformat(received_at)  # reject junk dates; they would break month grouping
     return sender, body, received_at
+
+
+def read_import(environ):
+    """A batch from the import page: JSON {"messages": [{sender, body, received_at}, ...]}.
+    JSON only, so a cross-site form can't submit it with the browser's cookie."""
+    length = int(environ.get('CONTENT_LENGTH') or 0)
+    if not 0 < length <= MAX_IMPORT_BODY or not environ.get('CONTENT_TYPE', '').startswith('application/json'):
+        raise ValueError('expected a JSON body up to 2 MB')
+    messages = json.loads(environ['wsgi.input'].read(length))['messages']
+    if not isinstance(messages, list) or len(messages) > MAX_IMPORT_BATCH:
+        raise ValueError(f'messages must be a list of at most {MAX_IMPORT_BATCH}')
+    return [clean_message(m) for m in messages]
 
 
 def app(environ, start_response):
@@ -247,14 +278,22 @@ def app(environ, start_response):
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif not (session_ok(environ) or bearer_ok(environ)):
-        return redirect('/login') if method == 'GET' and path == '/' else respond('401 Unauthorized', {'error': 'unauthorized'})
-    elif method == 'GET' and path == '/':
-        return respond('200 OK', (HERE / 'dashboard.html').read_bytes(), 'text/html; charset=utf-8')
+        return redirect('/login') if method == 'GET' and path in PAGES else respond('401 Unauthorized', {'error': 'unauthorized'})
+    elif method == 'GET' and path in PAGES:
+        return respond('200 OK', (HERE / PAGES[path]).read_bytes(), 'text/html; charset=utf-8')
+    elif (method, path) == ('POST', '/api/import'):
+        try:
+            batch = read_import(environ)
+        except (ValueError, KeyError, TypeError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions')}:
         return respond('404 Not Found', {'error': 'not found'})
 
     db = DB()
     try:
+        if path == '/api/import':
+            stored = store_many(db, batch)
+            return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
             stored = store_sms(db, *sms)
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})

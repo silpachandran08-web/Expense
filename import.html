@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Import old SMS · Expenses</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f1f3; --line: #e6e7ea;
+    --text: #0b0b0c; --text-2: #52514e; --muted: #77767a; --accent: #2a78d6; --accent-text: #fff; --good: #0f7b3e; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1012; --surface: #1a1a1c; --surface-2: #242427; --line: #2c2c30;
+      --text: #f0efec; --text-2: #c3c2b7; --muted: #93929a; --accent: #5598e7; --accent-text: #0b0b0c; --good: #4ade80; --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 16px; }
+  .bar { display: flex; align-items: center; gap: 12px; }
+  .bar a { color: var(--text-2); text-decoration: none; font-size: 22px; line-height: 1; padding: 4px 8px 4px 0; }
+  h1 { font-size: 20px; margin: 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  ol { margin: 0; padding-left: 20px; color: var(--text-2); }
+  ol li { margin: 6px 0; }
+  b { color: var(--text); }
+  .note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+  .pick { display: block; border: 2px dashed var(--line); border-radius: 14px; padding: 22px 16px; text-align: center; cursor: pointer; color: var(--text-2); }
+  .pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .pick strong { display: block; color: var(--accent); font-size: 16px; margin-bottom: 2px; }
+  button.primary { width: 100%; margin-top: 14px; padding: 12px; font: inherit; font-weight: 600; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .progress { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin-top: 14px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .status { margin: 10px 0 0; font-size: 14px; }
+  .status.ok { color: var(--good); } .status.err { color: var(--bad); }
+  .done a { display: inline-block; margin-top: 12px; color: var(--accent); font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar"><a href="/" aria-label="Back to dashboard">‹</a><h1>Import old SMS</h1></div>
+
+  <section class="card">
+    <h2>1. Export your messages</h2>
+    <ol>
+      <li>Install <b>SMS Backup &amp; Restore</b> (by SyncTech) from the Play Store.</li>
+      <li>Open it, tap <b>Set up a backup</b>, turn <b>Messages on</b> and <b>Phone calls off</b>. Under <b>Advanced options</b>, turn off <b>MMS</b> (photos make the file huge).</li>
+      <li>Choose <b>Your phone</b> as the backup location, then <b>Back up now</b>.</li>
+      <li>It saves a file like <b>sms-20261020….xml</b> in the <b>SMSBackupRestore</b> folder on your phone.</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>2. Choose that file</h2>
+    <label class="pick">
+      <input type="file" id="file" accept=".xml,text/xml,application/xml">
+      <strong>Choose backup file</strong>
+      <span id="file-name">sms-….xml from the SMSBackupRestore folder</span>
+    </label>
+    <p class="note">The file is read on this phone. Only messages with an amount in SAR or INR are sent to your site; personal chats stay on your phone.</p>
+    <div id="found" hidden>
+      <p class="status" id="found-text" aria-live="polite"></p>
+      <button class="primary" id="go">Import</button>
+      <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      <p class="status" id="progress-text" aria-live="polite"></p>
+      <div class="done" id="done" hidden><a href="/">Open dashboard →</a></div>
+    </div>
+    <p class="status err" id="error" role="alert"></p>
+  </section>
+</main>
+<script>
+// Same pre-filter as the phone forwarder: only SMS that show an amount in SAR or INR leave the phone.
+const MONEY = /(rs\.?|inr|₹|sar|sr|ريال)\s*:?\s*[0-9٠-٩]|[0-9٠-٩]\s*(sar|sr|ريال)/i;
+const BATCH = 200;
+const $ = id => document.getElementById(id);
+let messages = [];
+
+$('file').addEventListener('change', async () => {
+  const file = $('file').files[0];
+  $('error').textContent = ''; $('found').hidden = true; $('done').hidden = true;
+  if (!file) return;
+  $('file-name').textContent = `${file.name} · ${(file.size / 1048576).toFixed(1)} MB`;
+  if (file.size > 300 * 1048576) {
+    $('error').textContent = 'This file is very large, probably because it includes MMS photos. Make a new backup with MMS turned off.';
+    return;
+  }
+  const doc = new DOMParser().parseFromString(await file.text(), 'application/xml');
+  if (doc.querySelector('parsererror') || !doc.querySelector('smses')) {
+    $('error').textContent = "This doesn't look like an SMS Backup & Restore file. Choose the sms-….xml file.";
+    return;
+  }
+  const all = [...doc.getElementsByTagName('sms')];
+  messages = all
+    .filter(s => s.getAttribute('type') === '1' && MONEY.test(s.getAttribute('body') || ''))  // type 1 = received
+    .map(s => ({ sender: s.getAttribute('address') || '', body: s.getAttribute('body'), received_at: s.getAttribute('date') }));
+  $('found').hidden = false;
+  $('found-text').textContent = `Found ${messages.length.toLocaleString()} bank messages among ${all.length.toLocaleString()} SMS.`;
+  $('go').textContent = `Import ${messages.length.toLocaleString()} messages`;
+  $('go').disabled = !messages.length;
+  $('bar').style.width = '0';
+  $('progress-text').textContent = '';
+});
+
+$('go').addEventListener('click', async () => {
+  $('go').disabled = true; $('file').disabled = true; $('error').textContent = '';
+  let sent = 0, stored = 0;
+  try {
+    for (let i = 0; i < messages.length; i += BATCH) {
+      const r = await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messages.slice(i, i + BATCH) }) });
+      if (r.status === 401) { location.href = '/login'; return; }
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server said ${r.status}`);
+      stored += (await r.json()).stored;
+      sent = Math.min(i + BATCH, messages.length);
+      $('bar').style.width = `${(sent / messages.length * 100).toFixed(1)}%`;
+      $('progress-text').textContent = `Imported ${sent.toLocaleString()} of ${messages.length.toLocaleString()}…`;
+    }
+    $('progress-text').className = 'status ok';
+    $('progress-text').textContent = `Done: ${stored.toLocaleString()} new transactions added. ` +
+      `${(messages.length - stored).toLocaleString()} skipped (already imported, OTPs, offers or not a transaction).`;
+    $('done').hidden = false;
+  } catch (e) {
+    $('error').textContent = `Stopped after ${sent.toLocaleString()} messages: ${e.message}. Choose Import again to continue; nothing is added twice.`;
+    $('go').disabled = false;
+  } finally {
+    $('file').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

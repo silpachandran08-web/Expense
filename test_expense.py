@@ -189,6 +189,22 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.login('abc123')[:2], (303, '/'))
         os.environ['EXPENSE_TOKEN'] = TOKEN
 
+    def test_import_batch(self):
+        self.assertEqual((self.call('GET', '/import', auth='')[0], self.headers['Location']), (303, '/login'))
+        self.assertEqual(self.call('GET', '/import')[0], 200)
+        batch = {'messages': [{'sender': 'AlRajhi', 'body': s, 'received_at': '1792002600000'} for s, *_ in SAMPLES[6:]]
+                 + [{'sender': 'X', 'body': NOT_TRANSACTIONS[6], 'received_at': '1792002600000'}]}
+        body = json.dumps(batch).encode()
+        status, out = self.call('POST', '/api/import', body)
+        self.assertEqual((status, json.loads(out)), (200, {'received': 6, 'stored': 5}))  # the OTP is skipped
+        self.assertEqual(json.loads(self.call('POST', '/api/import', body)[1])['stored'], 0)  # re-import adds nothing
+        self.assertEqual(json.loads(self.call('GET', '/api/summary', query='currency=SAR')[1])['month'], '2026-10')
+        # JSON only (no cross-site form posts), batches capped, login required.
+        self.assertEqual(self.call('POST', '/api/import', body, content_type='application/x-www-form-urlencoded')[0], 400)
+        too_many = json.dumps({'messages': batch['messages'][:1] * (server.MAX_IMPORT_BATCH + 1)}).encode()
+        self.assertEqual(self.call('POST', '/api/import', too_many)[0], 400)
+        self.assertEqual(self.call('POST', '/api/import', body, auth='')[0], 401)
+
     def test_lockout_after_too_many_wrong_guesses(self):
         for i in range(server.MAX_FAILURES - 1):
             self.assertEqual(self.login(f'wrong-{i}')[1], '/login?error=1')

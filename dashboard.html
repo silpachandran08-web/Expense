@@ -109,6 +109,9 @@
   <div class="bar">
     <h1>Expenses</h1>
     <div class="seg" id="currency" role="group" aria-label="Currency"></div>
+    <a class="icon-btn" href="/import" aria-label="Import old SMS" title="Import old SMS">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    </a>
     <form method="post" action="/logout">
       <button class="icon-btn" aria-label="Sign out" title="Sign out">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
@@ -233,7 +236,7 @@ async function load() {
       `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${esc(t.category)} · ${t.received_at.slice(11, 16)}</small></span>` +
       `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
       `<pre>${esc(t.body)}</pre></details>`;
-  }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.</div>`;
+  }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
 }
 
 $('currency').addEventListener('click', e => {
