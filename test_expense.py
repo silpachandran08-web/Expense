@@ -135,6 +135,29 @@ class StoreMixin:
         self.assertEqual(cats['Dear Customer, your '], 'Salary')  # next month's salary follows the rule
         self.assertNotEqual(cats['Rs.2000 withdrawn at'], 'Salary')  # different wording does not
 
+    def test_transfers_between_own_accounts_are_not_counted(self):
+        db = self.db
+        store = lambda sender, body, at: server.store_sms(db, sender, body, f'2026-10-{at}:00+03:00')
+        store('AlRajhi', 'Outgoing Transfer\nAmount: SAR 2,000.00\nTo: SA44*9911\nRef 1', '05T10:00')
+        store('SNB', 'حوالة واردة\nمبلغ: SAR 2,000.00\nمن: SA03*1234', '05T10:03')       # the other side, 3 min later
+        store('AlRajhi', 'Outgoing Transfer\nAmount: SAR 500.00\nTo: SA44*9911\nRef 2', '06T10:00')
+        store('SNB', 'Incoming Transfer\nAmount: SAR 500.00\nFrom: SA03*1234\nRef 3', '06T15:00')  # 5 hours later: no pair
+        store('AlRajhi', 'PoS Purchase\nAmount: SAR 300.00\nAt: PANDA', '07T10:00')
+        store('SNB', 'Incoming Transfer\nAmount: SAR 300.00\nFrom: AHMED', '07T10:10')  # same amount, but the purchase isn't a transfer
+        own = lambda: sorted(t['amount'] for t in server.transactions(db) if t['category'] == server.OWN_TRANSFER)
+        self.assertEqual(own(), [2000.0, 2000.0])
+        m = server.summary(db)['months'][0]
+        self.assertEqual((m['spent'], m['received']), (800.0, 800.0))  # 500 + 300 out, 500 + 300 in; the 2,000 pair is not counted
+        self.assertNotIn(server.OWN_TRANSFER, server.summary(db)['by_category'])
+
+        # Marking the unpaired 500 by hand counts it out too; correcting one side of a pair breaks the pair.
+        sent500 = next(t for t in server.transactions(db) if 'Ref 2' in t['body'])
+        server.set_category(db, sent500['id'], server.OWN_TRANSFER, False)
+        sent2000 = next(t for t in server.transactions(db) if 'Ref 1' in t['body'])
+        server.set_category(db, sent2000['id'], 'Rent & EMI', False)
+        self.assertEqual(own(), [500.0])
+        self.assertEqual(server.summary(db)['months'][0]['spent'], 2300.0)
+
     def test_corrections_follow_the_merchant(self):
         db = self.db
         server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD BAKERY\nRef 1', '2026-10-01T09:00:00+03:00')

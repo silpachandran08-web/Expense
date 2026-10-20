@@ -46,6 +46,13 @@ LEARNED_SCHEMAS = ['CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEX
                    'CREATE TABLE IF NOT EXISTS txn_categories (txn_id BIGINT PRIMARY KEY, category TEXT NOT NULL)']
 MAX_CATEGORY = 40
 IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
+OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
+NOT_COUNTED = {IGNORED, OWN_TRANSFER}
+# Words that mark a bank-to-bank transfer (English and Arabic), used to pair the two sides of an own transfer.
+TRANSFER = re.compile(r'\b(?:transfer(?:red)?|trf|xfer|neft|imps|rtgs|upi|iban|sarie)\b|حوالة|تحويل', re.I)
+# shortcut: pairs only same-currency, same-amount SMS within an hour; a slower or cross-currency transfer
+# needs the "Own transfer" option once (with "apply to all", that also covers the future ones).
+PAIR_WINDOW_SECONDS = 60 * 60
 
 
 class DB:
@@ -146,15 +153,38 @@ def transactions(db, month=None, currency=None):
             learned[r['category']].append(r['merchant'])
     overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
     rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC')
+    own = own_transfers(rows, overrides)
     return [{
         'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
         'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
         'merchant': r['merchant'],
-        'category': overrides.get(r['id']) or (r['merchant'] and categorize(r['merchant'], '', learned, None))
+        'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
+                    or (r['merchant'] and categorize(r['merchant'], '', learned, None))
                     or (not r['merchant'] and by_wording.get(wording(r['body'])))
                     or categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
     } for r in rows
         if (not month or r['received_at'].startswith(month)) and (not currency or r['currency'] == currency)]
+
+
+def own_transfers(rows, overrides):
+    """Ids of transfers between your own accounts: a transfer out and a transfer in of the same amount and
+    currency within PAIR_WINDOW_SECONDS (each account's bank sends its own SMS). A transaction you
+    categorized yourself is never paired, so correcting one side breaks a wrong pair."""
+    credits = defaultdict(list)  # (currency, amount) -> [(time, id)], so each debit only looks at equal amounts
+    for r in rows:
+        if r['direction'] == 'credit' and r['id'] not in overrides and TRANSFER.search(r['body']):
+            credits[r['currency'], r['amount_minor']].append((datetime.fromisoformat(r['received_at']), r['id']))
+    paired = set()
+    for r in rows:
+        if r['direction'] != 'debit' or r['id'] in overrides or not TRANSFER.search(r['body']):
+            continue
+        sent_at = datetime.fromisoformat(r['received_at'])
+        gaps = [(abs((got_at - sent_at).total_seconds()), cid) for got_at, cid in credits[r['currency'], r['amount_minor']]
+                if cid not in paired]
+        gap, cid = min(gaps, default=(None, None))
+        if cid is not None and gap <= PAIR_WINDOW_SECONDS:
+            paired |= {r['id'], cid}
+    return paired
 
 
 WORDING = 'sms:'  # merchant_categories keys starting with this are message wordings, not merchant names
@@ -211,13 +241,13 @@ def summary(db, month=None, currency=None):
     months = defaultdict(lambda: {'spent': 0, 'received': 0})
     for t in rows:
         totals = months[t['received_at'][:7]]  # the month is listed even if everything in it is ignored
-        if t['category'] != IGNORED:
+        if t['category'] not in NOT_COUNTED:
             totals['spent' if t['direction'] == 'debit' else 'received'] += round(t['amount'] * 100)
     month = month or max(months, default=datetime.now(timezone.utc).strftime('%Y-%m'))
 
     by_category, by_merchant = defaultdict(int), defaultdict(int)
     for t in rows:
-        if t['received_at'].startswith(month) and t['direction'] == 'debit' and t['category'] != IGNORED:
+        if t['received_at'].startswith(month) and t['direction'] == 'debit' and t['category'] not in NOT_COUNTED:
             minor = round(t['amount'] * 100)
             by_category[t['category']] += minor
             by_merchant[t['merchant'] or '(unknown)'] += minor
@@ -231,7 +261,7 @@ def summary(db, month=None, currency=None):
         'by_category': major(by_category),
         'top_merchants': dict(list(major(by_merchant).items())[:10]),
         # Choices for the category editor: the built-in ones plus any you invented.
-        'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized', IGNORED}),
+        'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized', *NOT_COUNTED}),
         # The month's transactions too (ignored ones included, so they can be un-ignored), in one request.
         'transactions': [t for t in rows if t['received_at'].startswith(month)],
         # Every month's uncategorized ones, newest first, for the "Needs a category" list.

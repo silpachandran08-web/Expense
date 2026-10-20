@@ -91,6 +91,7 @@
   .rows { list-style: none; margin: 0; padding: 0; }
   .rows li + li { border-top: 1px solid var(--line); }
   .merchant { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 14px; }
+  .merchant.cat { padding: 10px 8px; }
   .merchant span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .merchant span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
   .day { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }
@@ -197,7 +198,7 @@ const cache = {
 // Session expired or signed out elsewhere: back to the login page.
 const api = url => fetch(url).then(r => r.status === 401 ? (cache.clear(), location.href = '/login', new Promise(() => {})) : r.text());
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
-const IGNORED = 'Ignored';
+const IGNORED = 'Ignored', OWN_TRANSFER = 'Own transfer', NOT_COUNTED = new Set([IGNORED, OWN_TRANSFER]);
 const state = { month: '', currency: '', showIgnored: false, category: '', merchant: null };
 // What a saved rule applies to, worked out the same way as the server: the merchant, or for a message
 // with no merchant, its wording without numbers. Used to clear matching rows from the screen at once.
@@ -215,8 +216,8 @@ async function load() {
 function render(s) {
   // Ignored ones are left out of everything and listed separately, so they can be brought back.
   // Ignored ones are hidden behind a link; uncategorized ones sit in "Needs a category" until you sort them.
-  const counted = s.transactions.filter(t => t.category !== IGNORED);
-  const txns = counted.filter(t => t.category !== 'Uncategorized'), ignored = s.transactions.filter(t => t.category === IGNORED);
+  const counted = s.transactions.filter(t => !NOT_COUNTED.has(t.category));
+  const txns = counted.filter(t => t.category !== 'Uncategorized'), ignored = s.transactions.filter(t => NOT_COUNTED.has(t.category));
   Object.assign(state, { month: s.month, currency: s.currency });
   const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = n => `${s.currency} ${num.format(n)}`;
@@ -281,15 +282,16 @@ function render(s) {
   const dayLabel = d => d === iso(today) ? 'Today' : d === iso(yest) ? 'Yesterday'
     : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const row = (t, withDate) => {
-    const unsure = t.category === 'Uncategorized', ignored = t.category === IGNORED;
+    const unsure = t.category === 'Uncategorized', ignored = NOT_COUNTED.has(t.category);
     const options = s.categories.map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
     return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" data-key="${esc(ruleKey(t))}" ${unsure ? 'data-unsure' : ''}>` +
-      `<summary><span class="emoji" aria-hidden="true">${ignored ? '🚫' : icon(t.category)}</span>` +
-      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? 'Ignored, not counted' : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small></span>` +
+      `<summary><span class="emoji" aria-hidden="true">${t.category === OWN_TRANSFER ? '🔁' : ignored ? '🚫' : icon(t.category)}</span>` +
+      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? `${t.category === OWN_TRANSFER ? 'Own transfer' : 'Ignored'}, not counted` : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small></span>` +
       `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
       `<pre>${esc(t.body)}</pre>` +
       `<form class="fix"><label>${unsure ? 'Category' : 'Wrong category? Choose the right one'}<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
-      `<option value="__new">+ New category…</option><option value="${IGNORED}" ${ignored ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
+      `<option value="__new">+ New category…</option><option value="${OWN_TRANSFER}" ${t.category === OWN_TRANSFER ? 'selected' : ''}>🔁 Own transfer (don't count)</option>` +
+      `<option value="${IGNORED}" ${t.category === IGNORED ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
       `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
       `<label class="check"><input type="checkbox" name="all" checked>${t.merchant ? `Apply to all from ${esc(t.merchant)}` : 'Apply to all similar messages'}, including future SMS</label>` +
       `<div><button>Save</button></div></form></details>`;
@@ -310,7 +312,7 @@ function render(s) {
     return header + row(t, false);
   }).join('') || (filtering ? `<div class="empty"><b>Nothing here in ${monthName(s.month)}</b></div>` : '') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
   $('ignored').innerHTML = ignored.length
-    ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} ignored</button>` +
+    ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} not counted (own transfers &amp; ignored)</button>` +
       (state.showIgnored ? ignored.map(t => row(t, true)).join('') : '')
     : '';
   const todo = s.to_review;
@@ -366,13 +368,14 @@ document.addEventListener('submit', async e => {
     body: JSON.stringify({ id: Number(row.dataset.id), category: chosen, whole_merchant: all }) });
   if (r.status === 401) { location.href = '/login'; return; }
   if (!r.ok) { toast('Could not save. Try again.'); form.querySelector('button').disabled = false; return; }
-  toast(chosen === IGNORED
-    ? (all ? `Ignored, with ${row.dataset.merchant || 'similar messages'} from now on too.` : 'Ignored. It no longer counts.')
+  const done = chosen === OWN_TRANSFER ? 'Marked as own transfer' : 'Ignored';
+  toast(NOT_COUNTED.has(chosen)
+    ? (all ? `${done}, with ${row.dataset.merchant || 'similar messages'} from now on too.` : `${done}. It no longer counts.`)
     : (all ? `Saved. ${row.dataset.merchant || 'Similar messages'} ${row.dataset.merchant ? 'is' : 'are'} now ${chosen}, including future SMS.` : `Saved as ${chosen}.`));
   const wasReviewing = row.hasAttribute('data-unsure');
   // Saved ones leave the list right away (with "apply to all", every entry from that merchant does).
   // A re-sorted row stays in the full list, but leaves a category view it no longer belongs to.
-  const leavesList = wasReviewing || chosen === IGNORED || (state.category && chosen !== state.category);
+  const leavesList = wasReviewing || NOT_COUNTED.has(chosen) || (state.category && chosen !== state.category);
   const leaving = !leavesList ? [] : all
     ? [...document.querySelectorAll('details.txn')].filter(d => d.dataset.key === row.dataset.key && d.closest('#todo') === row.closest('#todo'))
     : [row];
