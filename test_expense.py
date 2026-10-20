@@ -326,6 +326,15 @@ class AppTest(unittest.TestCase):
         self.assertEqual(json.loads(status[1])['summary']['by_category'], {'Food': 15.0})  # and the updated dashboard
         self.assertEqual(json.loads(self.call('GET', '/api/transactions')[1])[0]['category'], 'Food')
         self.assertEqual(fix(category='Uncategorized'), 400)
+        # The reply carries every transaction in the request's currency (all months), so the page needs no refetch.
+        self.call('POST', '/sms', json.dumps({'sender': 'X', 'body': SAMPLES[0][0], 'received_at': '2026-08-01T10:00:00+05:30'}).encode())
+        self.call('POST', '/sms', json.dumps({'sender': 'B', 'body': 'SAR 9.00 paid to ABU SAAD BAKERY', 'received_at': '2026-01-05T10:00:00+03:00'}).encode())
+        reply = json.loads(self.call('POST', '/api/category', json.dumps({'id': txn['id'], 'category': 'Groceries'}).encode(),
+                                     query='currency=SAR&month=2026-10')[1])
+        self.assertEqual(sorted((t['currency'], t['amount'], t['category']) for t in reply['all']),
+                         [('SAR', 9.0, 'Groceries'), ('SAR', 15.0, 'Groceries')])  # the merchant rule covers both months
+        self.assertEqual(json.loads(self.call('POST', '/api/category', json.dumps({'id': txn['id'], 'category': 'Food'}).encode(),
+                                              query='currency=INR')[1])['all'][0]['currency'], 'INR')
         self.assertEqual(fix(category='x' * 41), 400)
         self.assertEqual(self.call('POST', '/api/category', b'{"id": 424242, "category": "Food"}')[0], 404)
         form = urlencode({'id': txn['id'], 'category': 'Food'}).encode()  # cross-site form posts are refused

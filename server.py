@@ -515,8 +515,10 @@ def app(environ, start_response):
             # dashboard, so saving is one request and one pass over the data instead of three.
             every = transactions(db)
             now = next(t['category'] for t in every if t['id'] == correction[0])
-            return respond('200 OK', {'saved': True, 'category': now,
-                                      'summary': summary(db, query.get('month'), query.get('currency'), every)})
+            result = summary(db, query.get('month'), query.get('currency'), every)
+            # Every transaction in that currency too, so the dashboard recomputes all its analytics from this reply.
+            return respond('200 OK', {'saved': True, 'category': now, 'summary': result,
+                                      'all': [t for t in every if t['currency'] == result['currency']]})
         if path == '/api/import':
             stored = store_many(db, batch)
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})

@@ -11,7 +11,7 @@
     color-scheme: light;
     --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f1f3; --line: #e6e7ea;
     --text: #0b0b0c; --text-2: #52514e; --muted: #77767a;
-    --accent: #2a78d6; --accent-soft: #dbe8f8; --bar: #2a78d6; --bar-dim: #b7d3f6;
+    --accent: #2a78d6; --accent-soft: #dbe8f8; --bar: #2a78d6; --bar-dim: #b7d3f6; --bar-2: #12a37a;
     --good: #0f7b3e; --bad: #b42318; --warn: #a15c00; --warn-soft: #fdf1dc;
     --hero-from: #1c5cab; --hero-to: #2a78d6; --hero-text: #ffffff; --hero-muted: #cde2fb;
   }
@@ -20,191 +20,205 @@
       color-scheme: dark;
       --bg: #0f1012; --surface: #1a1a1c; --surface-2: #242427; --line: #2c2c30;
       --text: #f0efec; --text-2: #c3c2b7; --muted: #93929a;
-      --accent: #5598e7; --accent-soft: #1d3150; --bar: #3987e5; --bar-dim: #24456f;
+      --accent: #5598e7; --accent-soft: #1d3150; --bar: #3987e5; --bar-dim: #24456f; --bar-2: #34c392;
       --good: #4ade80; --bad: #f87171; --warn: #f5b84a; --warn-soft: #3a2a0c;
       --hero-from: #104281; --hero-to: #1c5cab; --hero-text: #ffffff; --hero-muted: #b7d3f6;
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
-  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 16px; }
-  button, select { font: inherit; color: inherit; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px calc(88px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  button, select, input { font: inherit; color: inherit; }
+  a { color: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+  h1:focus { outline: none; }
+  .num, .v, .total, .kpis b { font-variant-numeric: tabular-nums; }
 
   /* App bar */
-  .bar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
-  .bar h1 { font-size: 20px; margin: 0; flex: 1; }
-  .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
-  .seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+  .appbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; min-height: 56px; padding: env(safe-area-inset-top) 4px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .appbar.drill { padding-left: 4px; }
+  .titles { flex: 1; min-width: 0; }
+  .titles h1 { font-size: 20px; line-height: 1.2; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drill .titles h1 { font-size: 17px; }
+  .titles .sub { margin: 0; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg { display: inline-flex; flex: none; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: none; min-height: 32px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
-  .icon-btn { border: 0; background: var(--surface-2); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--text-2); }
-  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn { flex: none; border: 0; background: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--text-2); text-decoration: none; }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* Bottom tabs */
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .tabbar a { position: relative; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .tabbar svg { width: 24px; height: 24px; }
+  .tabbar a[aria-current="page"], .tabbar a.on { color: var(--accent); font-weight: 600; }
+  .badge { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--bad); color: #fff; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+
+  /* Period chips: the only horizontal scroller */
+  .chips { display: flex; gap: 8px; overflow-x: auto; margin: -4px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips a { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--text-2); text-decoration: none; white-space: nowrap; }
+  .chips a[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   /* Hero */
-  .hero { background: linear-gradient(135deg, var(--hero-from), var(--hero-to)); color: var(--hero-text); border-radius: 20px; padding: 18px 20px 20px; }
-  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .month-nav button { border: 0; background: rgb(255 255 255 / .16); color: inherit; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1; }
+  .hero { background: linear-gradient(135deg, var(--hero-from), var(--hero-to)); color: var(--hero-text); border-radius: 16px; padding: 12px 16px 16px; }
+  .month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .month-nav button { flex: none; border: 0; background: rgb(255 255 255 / .16); color: inherit; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 20px; line-height: 1; }
   .month-nav button:disabled { opacity: .35; cursor: default; }
-  .month-nav span { font-weight: 600; }
+  .month-nav span { min-width: 0; text-align: center; font-weight: 600; font-size: 15px; }
+  .month-nav small { display: block; font-weight: 500; font-size: 12px; color: var(--hero-muted); }
   .hero .label { color: var(--hero-muted); font-size: 13px; }
-  .hero .total { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
-  .hero .total small { font-size: 16px; font-weight: 600; margin-right: 6px; color: var(--hero-muted); }
-  .hero .row { display: flex; gap: 20px; margin-top: 14px; flex-wrap: wrap; font-size: 14px; }
-  .hero .row b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
-  .delta { display: inline-block; margin-top: 6px; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgb(255 255 255 / .16); }
+  .hero .total { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+  .hero .total small { font-size: 15px; font-weight: 600; margin-right: 6px; color: var(--hero-muted); }
+  .hero .refunds { font-size: 13px; color: var(--hero-muted); margin-top: 4px; }
+  .delta { display: inline-block; margin-top: 4px; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: rgb(255 255 255 / .16); }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-top: 16px; }
+  .kpis div { min-width: 0; }
+  .kpis span { display: block; font-size: 12px; color: var(--hero-muted); }
+  .kpis b { display: block; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / .2); font-size: 13px; }
+  .proj b { font-variant-numeric: tabular-nums; }
 
   /* Cards */
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
-  .card h2 { font-size: 15px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .card h2 span { font-size: 13px; font-weight: 500; color: var(--muted); }
-  .grid { display: grid; gap: 16px; }
-  @media (min-width: 680px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card h2 { font-size: 17px; margin: 0 0 8px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+  .card h2 > span { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .card h2 + .card-sub { margin: -4px 0 8px; font-size: 13px; color: var(--muted); }
+  .more { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 4px; color: var(--accent); font-weight: 600; font-size: 15px; text-decoration: none; }
+  .banner { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; border-radius: 16px; background: var(--warn-soft); color: var(--text); text-decoration: none; font-weight: 600; }
+  .banner span { flex: 1; }
+  .banner .go, .ln .go { color: var(--muted); font-size: 20px; }
 
-  /* Category bars: labelled, so one hue is enough */
-  .cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-  .cat { border: 0; background: none; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); border-radius: 10px; text-align: left; cursor: pointer; }
-  .cat:hover { background: var(--surface-2); }
-  .cat[aria-pressed="true"] { background: var(--accent-soft); }
-  .cat-top .go { color: var(--muted); font-size: 16px; line-height: 1; }
-  .filter { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
-  .filter span { flex: 1; min-width: 0; }
-  .filter button { border: 0; background: var(--surface); border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
-  .txn small .pen { color: var(--accent); }
-  .cat-top { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-  .cat-top .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cat-top .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .cat-top .pct { color: var(--muted); font-size: 12px; width: 36px; text-align: right; }
-  .track { height: 6px; background: var(--surface-2); border-radius: 4px; margin: 6px 0 0 38px; overflow: hidden; }
-  .track i { display: block; height: 100%; background: var(--bar); border-radius: 4px; }
-  .emoji { width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font-size: 15px; }
+  /* Ranked bar row */
+  .rk { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 40px; grid-template-rows: auto 4px; column-gap: 12px; row-gap: 6px; align-items: center; min-height: 56px; padding: 8px 0; text-decoration: none; color: inherit; }
+  .rk + .rk, .sublink + .rk { border-top: 1px solid var(--line); }
+  .rk .ic { width: 32px; height: 32px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; font-size: 16px; }
+  .rk .nm { min-width: 0; }
+  .rk .nm b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk .nm small, .rk .v small { display: block; font-size: 12px; color: var(--muted); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk .v { text-align: right; font-weight: 600; white-space: nowrap; }
+  .rk .pc { text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rk .tr { grid-column: 2 / -1; height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+  .rk .tr i { display: block; height: 100%; background: var(--bar); border-radius: 2px; }
+  .acct { display: flex !important; min-width: 0; }
+  .acct span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct span:last-child { flex: none; padding-left: 4px; }
+  .up { color: var(--bad) !important; } .down { color: var(--good) !important; }
+  .sublink { display: inline-flex; align-items: center; min-height: 44px; margin: -8px 0 0 44px; color: var(--warn); font-weight: 600; font-size: 13px; text-decoration: none; }
 
-  /* Trend */
-  .trend { display: flex; align-items: flex-end; gap: 8px; height: 140px; padding-top: 18px; }
-  .trend button { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
-  .trend .col { width: 100%; max-width: 40px; background: var(--bar-dim); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
-  .trend button[aria-pressed="true"] .col { background: var(--bar); }
-  .trend .col em { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 4px; font-style: normal; font-size: 11px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .trend .m { font-size: 12px; color: var(--muted); }
-  .trend button[aria-pressed="true"] .m { color: var(--text); font-weight: 600; }
+  /* Link rows (Insights, settings) */
+  .ln { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; text-decoration: none; color: inherit; }
+  .ln + .ln { border-top: 1px solid var(--line); }
+  .ln .nm { flex: 1; min-width: 0; }
+  .ln .nm b { display: block; font-weight: 600; }
+  .ln .nm small { display: block; font-size: 12px; color: var(--muted); }
+  .ln .v { font-weight: 600; white-space: nowrap; }
 
-  /* Lists */
-  .rows { list-style: none; margin: 0; padding: 0; }
-  .rows li + li { border-top: 1px solid var(--line); }
-  .merchant { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 14px; }
-  .merchant.cat { padding: 10px 8px; }
-  .merchant span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .merchant span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
-  #accounts .merchant span:first-child { white-space: normal; }
-  .day { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }
-  .day:first-of-type { margin-top: 0; }
+  /* Bars */
+  .bars { display: flex; align-items: stretch; gap: 4px; height: 128px; }
+  .bars.mini { height: 64px; margin-top: 12px; }
+  .bars > * { flex: 1; min-width: 0; display: flex; flex-direction: column; text-decoration: none; color: inherit; }
+  .bars .area { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
+  .bars .col { flex: 1; max-width: 28px; min-height: 2px; background: var(--bar-dim); border-radius: 3px 3px 0 0; }
+  .bars .col.r { background: var(--bar-2); }
+  .bars .sel .col:not(.r) { background: var(--bar); }
+  .bars .m { height: 18px; font-size: 12px; line-height: 18px; text-align: center; color: var(--muted); overflow: hidden; }
+  .bars .sel .m { color: var(--text); font-weight: 600; }
+  .bars.days { gap: 2px; }
+  .bars.days .col { max-width: none; }
+  .legend { display: flex; gap: 16px; margin: 0 0 8px; font-size: 12px; color: var(--text-2); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  /* Drill-down summary */
+  .big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+  .big b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .pill { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 12px 0 0; }
+  .stats div { min-width: 0; }
+  .stats dt { font-size: 12px; color: var(--muted); }
+  .stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Transactions */
+  .day { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }
+  .day:first-child { margin-top: 0; }
+  .day a { text-decoration: none; display: inline-flex; align-items: center; min-height: 32px; }
+  .day span { font-variant-numeric: tabular-nums; }
   details.txn { border-top: 1px solid var(--line); }
-  details.txn:first-of-type { border-top: 0; }
-  details.txn summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; }
+  .day + details.txn { border-top: 0; }
+  details.txn summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 8px 0; min-height: 56px; cursor: pointer; }
   details.txn summary::-webkit-details-marker { display: none; }
-  .txn .emoji { width: 38px; height: 38px; border-radius: 12px; font-size: 18px; }
+  .emoji { width: 38px; height: 38px; flex: none; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; font-size: 17px; }
   .txn .who { flex: 1; min-width: 0; }
   .txn .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .txn .who small { color: var(--muted); font-size: 12px; }
+  .txn .who small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .txn small .pen { color: var(--accent); }
   .txn .amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .txn .amount.credit { color: var(--good); }
-  .txn pre { margin: 0 0 12px 50px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
-
+  .txn pre { margin: 0 0 12px 50px; padding: 8px 12px; background: var(--surface-2); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
   .txn small .fixme { color: var(--warn); font-weight: 600; }
-  .todo { background: var(--warn-soft); border-radius: 12px; padding: 4px 12px; margin-bottom: 16px; }
-  .todo h3 { font-size: 14px; margin: 8px 0 0; }
+  .todo { background: var(--warn-soft); border-radius: 16px; padding: 4px 12px; }
+  .todo h2 { font-size: 15px; margin: 8px 0 0; }
   .todo p { font-size: 13px; color: var(--text-2); margin: 2px 0 4px; }
   .todo details.txn { border-color: rgb(0 0 0 / .08); }
-  .todo .fix { margin-left: 0; }
-  .txn.leaving { opacity: 0; transition: opacity .25s; }
-  .fix button { font-weight: 600; border: 0; border-radius: 8px; padding: 8px 14px; background: var(--accent); color: #fff; cursor: pointer; }
-  .fix { margin: 0 0 14px 50px; display: grid; gap: 10px; }
+  .txn.leaving { opacity: 0; }
+  @media (prefers-reduced-motion: no-preference) { .txn.leaving { transition: opacity .25s; } }
+  .fix button, .btn { font-weight: 600; border: 0; border-radius: 10px; min-height: 44px; padding: 8px 16px; background: var(--accent); color: #fff; cursor: pointer; }
+  .fix { margin: 0 0 16px 50px; display: grid; gap: 12px; }
   .fix label { font-size: 13px; color: var(--text-2); }
-  .fix select, .fix input[type=text] { width: 100%; margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
-  .fix .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
-  .fix .check input { width: 18px; height: 18px; accent-color: var(--accent); }
-  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
+  .fix select, .fix input[type=text] { width: 100%; min-height: 44px; margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
+  .fix .check { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); min-height: 44px; }
+  .fix .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
   .txn.ignored .who b, .txn.ignored .amount { color: var(--muted); text-decoration: line-through; }
-  .link { border: 0; background: none; padding: 12px 0 4px; color: var(--accent); font-weight: 600; cursor: pointer; }
-  .phone-last { margin: 0 0 8px; font-size: 14px; }
+  .link { border: 0; background: none; min-height: 44px; padding: 8px 0; color: var(--accent); font-weight: 600; cursor: pointer; }
+  .toast { position: fixed; z-index: 20; left: 50%; bottom: calc(72px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 10px; font-size: 15px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
+
+  .phone-last { margin: 0 0 8px; font-size: 15px; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li + li { border-top: 1px solid var(--line); }
   .delivery { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; color: var(--text-2); }
-  .delivery .bad { color: var(--bad); font-weight: 600; }
-  .search { width: 100%; font: inherit; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--text); }
-  .stale { background: var(--bad); color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin: 0; }
+  .delivery span:last-child { text-align: right; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .search { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); }
+  .filter { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+  .stale { background: var(--bad); color: #fff; border-radius: 10px; padding: 8px 12px; font-size: 15px; margin: 0; }
   .version { text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
-  .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
-  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
-  .skeleton { opacity: .5; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 15px; }
+  .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
+  .empty a { color: var(--accent); font-weight: 600; }
+  .muted { color: var(--muted); }
+  h3.sec { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 0; }
 </style>
 </head>
 <body>
+<header class="appbar" id="appbar">
+  <button class="icon-btn" type="button" id="back" aria-label="Back" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <div class="titles"><h1 id="title" tabindex="-1">Overview</h1><p class="sub" id="sub" hidden></p></div>
+  <div class="seg" id="currency" role="group" aria-label="Currency"></div>
+  <a class="icon-btn" href="#/search" aria-label="Search all SMS" title="Search all SMS">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+  </a>
+  <a class="icon-btn" href="#/settings" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+  </a>
+</header>
 <main>
-  <div class="bar">
-    <h1>Expenses</h1>
-    <div class="seg" id="currency" role="group" aria-label="Currency"></div>
-    <a class="icon-btn" href="/import" aria-label="Import old SMS" title="Import old SMS">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-    </a>
-    <form method="post" action="/logout" onsubmit="cache.clear()">
-      <button class="icon-btn" aria-label="Sign out" title="Sign out">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-      </button>
-    </form>
-  </div>
-
   <p class="stale" id="stale" role="alert" hidden></p>
-  <section class="hero skeleton" id="hero" aria-live="polite">
-    <div class="month-nav">
-      <button id="prev" aria-label="Previous month">‹</button>
-      <span id="month-label">–</span>
-      <button id="next" aria-label="Next month">›</button>
-    </div>
-    <div class="label">Spent</div>
-    <div class="total" id="spent">–</div>
-    <div id="delta"></div>
-    <div class="row">
-      <div><span class="label">Received</span><b id="received">–</b></div>
-      <div><span class="label">Transactions</span><b id="count">–</b></div>
-    </div>
-  </section>
-
-  <div class="grid">
-    <section class="card">
-      <h2>Where it went <span id="cat-total"></span></h2>
-      <ul class="cats" id="cats"></ul>
-    </section>
-    <section class="card">
-      <h2>Last 6 months <span>spent</span></h2>
-      <div class="trend" id="trend"></div>
-      <h2 style="margin-top:20px">Top merchants</h2>
-      <ul class="rows" id="merchants"></ul>
-      <h2 style="margin-top:20px">Cards &amp; accounts <span>spent</span></h2>
-      <ul class="rows" id="accounts"></ul>
-    </section>
-  </div>
-
-  <section class="card" id="txn-card">
-    <h2>Transactions <span>tap to see SMS or fix</span></h2>
-    <input type="search" id="search" class="search" placeholder="🔎 Search all SMS: merchant, amount, card, any word" aria-label="Search all SMS" autocomplete="off" enterkeyhint="search">
-    <div id="todo"></div>
-    <div id="filter"></div>
-    <div id="txns"></div>
-    <div id="ignored"></div>
-  </section>
-  <section class="card" id="phone">
-    <h2>Phone connection <span>last 7 days</span></h2>
-    <p class="phone-last" id="phone-last"></p>
-    <ul class="rows" id="deliveries"></ul>
-  </section>
-  <div class="toast" id="toast" role="status" hidden></div>
-  <p class="version" id="version"></p>
+  <div class="view" id="view"></div>
 </main>
+<nav class="tabbar" aria-label="Main" id="tabs"></nav>
+<div class="toast" id="toast" role="status" hidden></div>
 <script>
 const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Transport': '🚗', 'Travel': '✈️', 'Bills & Utilities': '💡',
   'Subscriptions': '📺', 'Health': '💊', 'Entertainment': '🎬', 'Rent & EMI': '🏠', 'Investments': '📈', 'Insurance': '🛡️',
-  'Cash': '💵', 'Salary': '💰', 'Income': '💰' };
+  'Cash': '💵', 'Salary': '💰', 'Income': '💰', 'Uncategorized': '❔' };
 const icon = c => ICONS[c] || '🧾';
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const enc = encodeURIComponent;
 // The last data seen is kept on this device so the dashboard paints instantly, then refreshes. Cleared on sign out.
 const CACHE = 'expense:';
 const cache = {
@@ -218,246 +232,593 @@ const api = url => fetch(url).then(r => {
   if (!r.ok) throw new Error(`the server answered ${r.status}`);
   return r.text();
 });
-const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
 const IGNORED = 'Ignored', OWN_TRANSFER = 'Own transfer', NOT_COUNTED = new Set([IGNORED, OWN_TRANSFER]);
-const state = { month: '', currency: '', showIgnored: false, category: '', merchant: null, account: '', search: '', results: null, last: null };
+const INCOME = new Set(['Salary', 'Income']);
+const FIXED = new Set(['Rent & EMI', 'Bills & Utilities', 'Subscriptions', 'Insurance', 'Investments']);
+const LARGE_MIN = { SAR: 200, INR: 5000 }, LARGE_SKIP = new Set(['Rent & EMI', 'Investments']);
+const smooth = matchMedia('(prefers-reduced-motion: no-preference)').matches ? 'smooth' : 'auto';
+const state = { currency: cache.get('currency') || '', sum: null, all: [], showIgnored: false, merchSort: 'spent', search: '', results: null };
 // What a saved rule applies to, worked out the same way as the server: the merchant, or for a message
 // with no merchant, its wording without numbers. Used to clear matching rows from the screen at once.
 const ruleKey = t => t.merchant ? t.merchant.trim().toLowerCase()
   : 'sms:' + t.body.toLowerCase().replace(/[\d٠-٩][\d٠-٩,.:/*-]*/g, '#').split(/\s+/).filter(Boolean).join(' ');
 
-let pending = null;  // fresh data that arrived while a transaction was open
+/* ---------- Numbers and dates (amounts are kept in minor units so sums don't drift) ---------- */
+const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = c => (c < 0 ? '−' : '') + num.format(Math.abs(c) / 100);
+const money = c => `${state.currency} ${fmt(c)}`;
+const short = c => { const n = Math.abs(c) / 100; return (c < 0 ? '−' : '') + (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : Math.round(n)); };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const pad = n => String(n).padStart(2, '0');
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => isoDate(new Date());
+const dayNum = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5;
+const fromNum = n => new Date(n * 864e5).toISOString().slice(0, 10);
+const addM = (m, k) => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + k, 1)).toISOString().slice(0, 7);
+const daysIn = m => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7), 0)).getUTCDate();
+const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
+const mon = m => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short' });
+const okDay = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && fromNum(dayNum(s)) === s;
+const longDay = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const shortDay = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const dayLabel = d => {
+  const t = today();
+  return d === t ? 'Today' : d === fromNum(dayNum(t) - 1) ? 'Yesterday'
+    : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+};
+const median = a => { const s = [...a].sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
 
-async function load(force = false) {
-  pending = null;
-  const key = `${state.month}|${state.currency}`, cached = cache.get(key);
-  if (cached) render(JSON.parse(cached));
-  let fresh;
-  try {
-    fresh = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
-    JSON.parse(fresh);
-  } catch (err) {  // never pass off the saved copy as current
-    $('stale').hidden = false;
-    $('stale').textContent = `Couldn't refresh (${err.message}). ${cached ? 'You are seeing the last saved copy.' : ''} Pull down to try again.`;
-    return;
+/* ---------- Finance definitions ---------- */
+// _s: what a transaction adds to Spent (refunds in spending categories subtract), _r: what it adds to Received.
+function prep(list) {
+  for (const t of list) {
+    t._c = Math.round(t.amount * 100); t._d = t.received_at.slice(0, 10); t._m = t._d.slice(0, 7);
+    t._n = !NOT_COUNTED.has(t.category);
+    t._s = !t._n ? 0 : t.direction === 'debit' ? t._c : INCOME.has(t.category) ? 0 : -t._c;
+    t._r = t._n && t.direction === 'credit' && INCOME.has(t.category) ? t._c : 0;
   }
-  $('stale').hidden = true;
-  cache.set(key, fresh);
-  if (fresh === cached) return;  // unchanged: leave the screen alone
-  // A redraw would snap an open transaction (and its category menu) shut, so wait until it's closed.
-  if (!force && document.querySelector('details.txn[open]')) { pending = fresh; return; }
-  render(JSON.parse(fresh));
+  return list;
+}
+function totals(list) {
+  const T = { spent: 0, received: 0, refunds: 0, n: 0, count: 0 };
+  for (const t of list) {
+    if (!t._n) continue;
+    T.count++; T.spent += t._s; T.received += t._r;
+    if (t._s < 0) T.refunds -= t._s;
+    if (t._s > 0) T.n++;
+  }
+  return T;
+}
+function group(list, keyOf) {
+  const g = new Map();
+  for (const t of list) {
+    if (!t._n) continue;
+    const k = keyOf(t);
+    let e = g.get(k);
+    if (!e) g.set(k, e = { key: k, spent: 0, received: 0, n: 0, count: 0, list: [] });
+    e.spent += t._s; e.received += t._r; e.count++; if (t._s > 0) e.n++;
+    e.list.push(t);
+  }
+  return [...g.values()];
+}
+const spendGroups = (list, keyOf) => group(list, keyOf).filter(e => e.n || e.spent).sort((a, b) => b.spent - a.spent);
+// vs previous: hidden ("new") when the previous period has nothing to compare against.
+const deltaPct = (cur, prev) => !prev || prev.spent <= 0 || prev.n < 5 ? null : Math.round((cur - prev.spent) / prev.spent * 100);
+const deltaHtml = d => d === null ? '<span class="muted">new</span>'
+  : `<span class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}%</span>`;
+const byMonth = list => { const m = new Map(); for (const t of list) { if (!t._n) continue; const e = m.get(t._m) || { spent: 0, received: 0 }; e.spent += t._s; e.received += t._r; m.set(t._m, e); } return m; };
+
+const RANGES = { '3m': 3, '6m': 6, '12m': 12 };
+// The period the screen covers, from the hash (untrusted: anything unexpected falls back to this month).
+function period(q, rt) {
+  const td = today(), cur = td.slice(0, 7), lastM = addM(cur, -1);
+  const okMonth = s => /^\d{4}-(0[1-9]|1[0-2])$/.test(s || '') && s <= cur;
+  const end = m => `${m}-${pad(daysIn(m))}`, clamp = (m, d) => `${m}-${pad(Math.min(d, daysIn(m)))}`;
+  const span = (a, b) => dayNum(b) - dayNum(a) + 1;
+  let o = parseInt(q.get('o'), 10); o = o < 0 ? Math.max(o, -100) : 0;
+  const p = q.get('p');
+  if (rt.name === 'day' && okDay(rt.arg)) {
+    const d = rt.arg, pd = fromNum(dayNum(d) - 1);
+    return { kind: 'day', start: d, end: d, prevStart: pd, prevEnd: pd, days: 1, endMonth: d.slice(0, 7), label: longDay(d), sofar: '', prevLabel: 'the day before', qs: `m=${d.slice(0, 7)}` };
+  }
+  const m = rt.name === 'month' && okMonth(rt.arg) ? rt.arg : okMonth(q.get('m')) ? q.get('m')
+    : p === 'last' ? lastM : (RANGES[p] || p === 'ytd') ? '' : cur;
+  const mqs = x => x === cur ? 'p=this' : x === lastM ? 'p=last' : `m=${x}`;
+  if (m) {
+    const pm = addM(m, -1), partial = m === cur, N = daysIn(m), d = partial ? +td.slice(8) : N;
+    return { kind: 'month', m, start: `${m}-01`, end: partial ? td : end(m), prevStart: `${pm}-01`, prevEnd: partial ? clamp(pm, d) : end(pm),
+      days: d, d, N, partial, endMonth: m, label: monthName(m), sofar: partial ? `so far (${d} of ${N} days)` : '',
+      prevLabel: partial ? `${mon(pm)} 1–${Math.min(d, daysIn(pm))}` : monthName(pm, 'short'),
+      chip: m === cur ? 'this' : m === lastM ? 'last' : '', qs: mqs(m), step: k => addM(m, k) > cur ? null : mqs(addM(m, k)) };
+  }
+  if (p === 'ytd') {
+    const y = +cur.slice(0, 4) + o, partial = o === 0, e = partial ? td : `${y}-12-31`, md = e.slice(5);
+    return { kind: 'ytd', start: `${y}-01-01`, end: e, prevStart: `${y - 1}-01-01`,
+      prevEnd: partial ? `${y - 1}-${md === '02-29' ? '02-28' : md}` : `${y - 1}-12-31`, days: span(`${y}-01-01`, e), partial,
+      endMonth: e.slice(0, 7), label: `${y}`, sofar: partial ? 'so far' : '', prevLabel: partial ? `same days of ${y - 1}` : `${y - 1}`,
+      chip: 'ytd', qs: o ? `p=ytd&o=${o}` : 'p=ytd', step: k => o + k > 0 ? null : o + k ? `p=ytd&o=${o + k}` : 'p=ytd' };
+  }
+  const n = RANGES[p], endMonth = addM(cur, o * n), first = addM(endMonth, -(n - 1)), partial = o === 0, pEnd = addM(endMonth, -n);
+  const e = partial ? td : end(endMonth);
+  return { kind: 'range', start: `${first}-01`, end: e, prevStart: `${addM(first, -n)}-01`, prevEnd: partial ? clamp(pEnd, +td.slice(8)) : end(pEnd),
+    days: span(`${first}-01`, e), partial, endMonth,
+    label: `${mon(first)}${first.slice(0, 4) !== endMonth.slice(0, 4) ? ' ' + first.slice(0, 4) : ''} – ${mon(endMonth)} ${endMonth.slice(0, 4)}`,
+    sofar: partial ? 'so far' : '', prevLabel: `previous ${n} months`, chip: p,
+    qs: o ? `p=${p}&o=${o}` : `p=${p}`, step: k => o + k > 0 ? null : o + k ? `p=${p}&o=${o + k}` : `p=${p}` };
 }
 
+// Payments that repeat at a steady interval and amount (see the definitions in the README of this change).
+function recurring(all) {
+  const groups = new Map(), td = dayNum(today()), out = [];
+  for (const t of all) if (t._n && t.direction === 'debit' && t.merchant) {
+    const k = t.merchant.toLowerCase(); (groups.get(k) || groups.set(k, []).get(k)).push(t);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 3) continue;
+    list.sort((a, b) => a._d < b._d ? -1 : a._d > b._d ? 1 : 0);
+    const gaps = list.slice(1).map((t, i) => dayNum(t._d) - dayNum(list[i]._d)), G = median(gaps);
+    const cadence = G >= 6 && G <= 8 ? 'Weekly' : G >= 27 && G <= 33 ? 'Monthly' : G >= 355 && G <= 375 ? 'Yearly' : '';
+    const amounts = list.map(t => t._c), A = median(amounts);
+    if (!cadence || gaps.filter(g => Math.abs(g - G) <= G * .25).length < gaps.length * .75
+        || amounts.filter(a => Math.abs(a - A) <= A * .15).length < amounts.length * .75) continue;
+    const last = list[list.length - 1], lastN = dayNum(last._d);
+    out.push({ merchant: last.merchant, category: last.category, cadence, A, G, last: last._d, next: fromNum(lastN + G),
+      monthly: Math.round(A * 30.4 / G), active: td <= lastN + G + 7, priceUp: last._c > A * 1.1, latest: last._c });
+  }
+  return out.sort((a, b) => b.monthly - a.monthly);
+}
+
+// Debits far above what that merchant (or else that category) usually costs, judged on earlier ones only.
+function largeOnes(all) {
+  const min = (LARGE_MIN[state.currency] ?? 200) * 100, byM = new Map(), byC = new Map(), out = [];
+  const debits = all.filter(t => t._n && t.direction === 'debit').sort((a, b) => a.received_at < b.received_at ? -1 : a.received_at > b.received_at ? 1 : a.id - b.id);
+  for (const t of debits) {
+    const mk = t.merchant.toLowerCase(), mh = mk ? byM.get(mk) || [] : [], ch = byC.get(t.category) || [];
+    if (!LARGE_SKIP.has(t.category) && t._c >= min) {
+      const base = mh.length >= 4 ? median(mh) : t.category !== 'Uncategorized' && ch.length >= 5 ? median(ch) : 0;
+      if (base && t._c >= 3 * base) out.push({ t, x: t._c / base });
+    }
+    if (mk) byM.set(mk, [...mh, t._c]);
+    byC.set(t.category, [...ch, t._c]);
+  }
+  return out.reverse();
+}
+
+/* ---------- Routing ---------- */
+const TABS = [
+  ['overview', 'Overview', '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>'],
+  ['categories', 'Categories', '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'],
+  ['merchants', 'Merchants', '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9h16v1a3 3 0 0 1-5.3 2 3 3 0 0 1-5.4 0A3 3 0 0 1 4 10z"/><path d="M5 13v7h14v-7"/>'],
+  ['cards', 'Cards', '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'],
+  ['activity', 'Activity', '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
+];
+const PARENT = { category: 'categories', merchant: 'merchants', card: 'cards' };  // everything else returns to Overview
+const DIM = { category: { path: 'category', param: 'cat', label: 'Category' }, merchant: { path: 'merchant', param: 'mer', label: 'Merchant' }, account: { path: 'card', param: 'acc', label: 'Card' } };
+const merKey = m => m === '' ? '_unknown' : m;
+const merName = m => m || 'Unknown merchant';
+
+function parseRoute() {
+  const h = location.hash.replace(/^#\/?/, ''), qi = h.indexOf('?');
+  const path = qi < 0 ? h : h.slice(0, qi), q = new URLSearchParams(qi < 0 ? '' : h.slice(qi + 1));
+  const [name, ...rest] = path.split('/');
+  let arg = '';
+  try { arg = decodeURIComponent(rest.join('/')); } catch { arg = null; }  // malformed escapes: show "not found"
+  return { name: PAGES[name] ? name : 'overview', arg, q, hash: location.hash };
+}
+function filterOf(rt) {
+  const f = {}, q = rt.q, mer = v => v === '_unknown' ? '' : v;
+  if (q.has('cat')) f.category = q.get('cat');
+  if (q.has('mer')) f.merchant = mer(q.get('mer'));
+  if (q.has('acc')) f.account = q.get('acc');
+  if (rt.name === 'category') f.category = rt.arg;
+  if (rt.name === 'cash') f.category = 'Cash';
+  if (rt.name === 'merchant') f.merchant = rt.arg === null ? null : mer(rt.arg);
+  if (rt.name === 'card') f.account = rt.arg;
+  return f;
+}
+const matches = f => t => Object.entries(f).every(([k, v]) => t[k] === v);
+// A drill-down one level deeper: `dim` becomes the page, the rest of the filter rides along in the query.
+function link(dim, value, f, P) {
+  const extra = Object.entries(f).filter(([k]) => k !== dim).map(([k, v]) => `${DIM[k].param}=${enc(k === 'merchant' ? merKey(v) : v)}`);
+  return `#/${DIM[dim].path}/${enc(dim === 'merchant' ? merKey(value) : value)}?${[...extra, P.qs].join('&')}`;
+}
+
+let depth = 0, replacing = false, lastHash = null, popped = false;
+const scrolls = {};
+history.scrollRestoration = 'manual';
+function go(hash, replace) {
+  if (hash === location.hash) return;
+  if (replace) { replacing = true; location.replace(hash); } else location.hash = hash;
+}
+addEventListener('hashchange', () => {
+  const st = history.state;
+  popped = !!(st && typeof st.d === 'number');
+  if (popped) depth = st.d;
+  else {
+    depth = replacing ? (TABS.some(([k]) => k === parseRoute().name) ? 0 : depth) : depth + 1;
+    history.replaceState({ d: depth }, '');
+  }
+  replacing = false;
+  render();
+});
+addEventListener('scroll', () => { scrolls[location.hash] = scrollY; }, { passive: true });
+
+/* ---------- Data ---------- */
+let pending = null, loadSeq = 0;  // pending: fresh data that arrived while a transaction was open
+function setData(sum, all) {
+  state.sum = sum; state.currency = sum.currency; state.all = prep(all);
+  state.earliest = state.all.reduce((a, t) => t._d < a ? t._d : a, today());
+}
+async function load(force = false) {
+  pending = null;
+  const seq = ++loadSeq, C = state.currency;
+  const cs = C && cache.get('s|' + C), ct = C && cache.get('t|' + C);
+  let painted = false;
+  if (cs && ct) try { setData(JSON.parse(cs), JSON.parse(ct)); painted = true; } catch {}
+  if (!painted) { state.sum = null; state.all = []; }
+  render();
+  let s, t, sum, all;
+  try {
+    if (C) [s, t] = await Promise.all([api(`/api/summary?currency=${enc(C)}`), api(`/api/transactions?currency=${enc(C)}`)]);
+    else { s = await api('/api/summary'); t = await api(`/api/transactions?currency=${enc(JSON.parse(s).currency)}`); }
+    sum = JSON.parse(s); all = JSON.parse(t);
+  } catch (err) {  // never pass off the saved copy as current
+    if (seq !== loadSeq) return;
+    $('stale').hidden = false;
+    $('stale').textContent = `Couldn't refresh (${err.message}). ${painted ? 'You are seeing the last saved copy.' : ''} Pull down to try again.`;
+    return;
+  }
+  if (seq !== loadSeq) return;  // the currency changed while this was loading
+  $('stale').hidden = true;
+  cache.set('s|' + sum.currency, s); cache.set('t|' + sum.currency, t); cache.set('currency', sum.currency);
+  if (s === cs && t === ct) return;  // unchanged: leave the screen alone
+  // A redraw would snap an open transaction (and its category menu) shut, so wait until it's closed.
+  if (!force && document.querySelector('details.txn[open]')) { pending = [sum, all]; return; }
+  setData(sum, all); render();
+}
 document.addEventListener('toggle', e => {
   if (pending && e.target.matches('details.txn') && !document.querySelector('details.txn[open]')) {
-    const s = pending; pending = null; render(JSON.parse(s));
+    const [s, a] = pending; pending = null; setData(s, a); render();
   }
 }, true);
 
+/* ---------- Building blocks ---------- */
+const go1 = '<span class="go" aria-hidden="true">›</span>';
+const splitAcct = a => { const i = a.lastIndexOf('•'); return i > 0 ? `<b class="acct" title="${esc(a)}"><span>${esc(a.slice(0, i))}</span><span>${esc(a.slice(i))}</span></b>` : `<b title="${esc(a)}">${esc(a)}</b>`; };
+// Ranked bar row: icon | name + detail | amount (+ change) | share, with the share as a bar below.
+const rk = r => `<${r.href ? `a href="${r.href}"` : 'div'} class="rk"><span class="ic" aria-hidden="true">${r.icon}</span>` +
+  `<span class="nm">${r.nameHtml || `<b title="${esc(r.name)}">${esc(r.name)}</b>`}${r.sub ? `<small>${r.sub}</small>` : ''}</span>` +
+  `<span class="v">${fmt(r.value)}${r.vsub ? `<small>${r.vsub}</small>` : ''}</span>` +
+  `<span class="pc">${r.pct == null ? '' : Math.round(r.pct * 100) + '%'}</span>` +
+  `<span class="tr" aria-hidden="true"><i style="width:${(Math.max(0, Math.min(1, r.bar ?? r.pct ?? 0)) * 100).toFixed(1)}%"></i></span></${r.href ? 'a' : 'div'}>`;
+const card = (title, aside, body, more) => `<section class="card"><h2>${title}${aside ? `<span>${aside}</span>` : ''}</h2>${body}${more ? `<a class="more" href="${more}">See all</a>` : ''}</section>`;
+const empty = (b, text = '') => `<div class="empty"><b>${b}</b>${text}</div>`;
+const lastMonths = (endMonth, n) => Array.from({ length: n }, (_, i) => addM(endMonth, i - n + 1));
+// Month bars; `series` picks spent and optionally received (side by side on one axis).
+function monthBars(list, endMonth, P, { mini = false, received = false, href = true } = {}) {
+  const months = lastMonths(endMonth, 12), bm = byMonth(list);
+  const val = (m, k) => Math.max(0, (bm.get(m) || {})[k] || 0);
+  const max = Math.max(1, ...months.map(m => Math.max(val(m, 'spent'), received ? val(m, 'received') : 0)));
+  const from = P.start.slice(0, 7), to = P.end.slice(0, 7);
+  return `<div class="bars${mini ? ' mini' : ''}">` + months.map(m => {
+    const label = `${monthName(m)}: spent ${money(val(m, 'spent'))}${received ? `, received ${money(val(m, 'received'))}` : ''}`;
+    const tag = href ? `a href="#/month/${m}"` : 'div role="img"';
+    return `<${tag} class="${m >= from && m <= to ? 'sel' : ''}" aria-label="${esc(label)}" title="${esc(label)}"><span class="area">` +
+      `<span class="col" style="height:${(val(m, 'spent') / max * 100).toFixed(1)}%"></span>` +
+      (received ? `<span class="col r" style="height:${(val(m, 'received') / max * 100).toFixed(1)}%"></span>` : '') +
+      `</span>${mini ? '' : `<span class="m" aria-hidden="true">${new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'narrow' })}</span>`}</${href ? 'a' : 'div'}>`;
+  }).join('') + '</div>';
+}
+function row(t, withDate) {
+  const unsure = t.category === 'Uncategorized', ignored = NOT_COUNTED.has(t.category);
+  const options = (state.sum?.categories || []).map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" data-key="${esc(ruleKey(t))}" ${unsure ? 'data-unsure' : ''}>` +
+    `<summary><span class="emoji" aria-hidden="true">${t.category === OWN_TRANSFER ? '🔁' : ignored ? '🚫' : icon(t.category)}</span>` +
+    `<span class="who"><b>${esc(merName(t.merchant))}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? `${t.category === OWN_TRANSFER ? 'Own transfer' : 'Ignored'}, not counted` : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small><small>💳 ${esc(t.account)}</small></span>` +
+    `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${fmt(t._c)}</span></summary>` +
+    `<pre>${esc(t.body)}</pre>` +
+    `<form class="fix"><label>${unsure ? 'Category' : 'Wrong category? Choose the right one'}<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
+    `<option value="__new">+ New category…</option><option value="${OWN_TRANSFER}" ${t.category === OWN_TRANSFER ? 'selected' : ''}>🔁 Own transfer (don't count)</option>` +
+    `<option value="${IGNORED}" ${t.category === IGNORED ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
+    `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
+    `<label class="check"><input type="checkbox" name="all" checked>${t.merchant ? `Apply to all from ${esc(t.merchant)}` : 'Apply to all similar messages'}, including future SMS</label>` +
+    `<div><button>Save</button></div></form></details>`;
+}
+// Transactions grouped by day, each day header linking to that day and showing what it spent.
+function dayGroups(list, linkDays = true) {
+  const perDay = new Map();
+  for (const t of list) perDay.set(t._d, (perDay.get(t._d) || 0) + t._s);
+  let last = '';
+  return list.map(t => {
+    const head = t._d !== last ? `<h3 class="day">${linkDays ? `<a href="#/day/${t._d}">${esc(dayLabel(t._d))} ›</a>` : esc(dayLabel(t._d))}<span>${perDay.get(t._d) ? fmt(perDay.get(t._d)) : ''}</span></h3>` : '';
+    last = t._d;
+    return head + row(t, false);
+  }).join('');
+}
+// Counted transactions by day, plus the not-counted ones behind a toggle so they can be un-ignored.
+function txnList(list, title = 'Transactions', linkDays = true, aside = 'tap to see SMS or fix') {
+  const counted = list.filter(t => t._n), ignored = list.filter(t => !t._n);
+  return `<section class="card"><h2>${title}<span>${esc(aside)}</span></h2>` +
+    (dayGroups(counted, linkDays) || empty('Nothing here in this period')) +
+    (ignored.length ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} not counted (own transfers &amp; ignored)</button>` +
+      (state.showIgnored ? ignored.map(t => row(t, true)).join('') : '') : '') + '</section>';
+}
+const chips = P => `<nav class="chips" aria-label="Period">` + [['this', 'This month'], ['last', 'Last month'], ['3m', '3M'], ['6m', '6M'], ['12m', '12M'], ['ytd', 'Year']]
+  .map(([k, label]) => `<a href="#/${parseRoute().name}?p=${k}" data-replace aria-current="${P.chip === k && !(P.kind !== 'month' && P.step(1))}">${label}</a>`).join('') + '</nav>';
+const periodText = P => `${P.label}${P.sofar ? ' ' + P.sofar : ''}`;
+
+/* ---------- Pages ---------- */
+function overview(rt, P, X) {
+  if (!state.all.length) return { html: chips(P) + `<section class="card">${empty('No transactions yet', 'New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import">Import your old SMS</a>')}</section>` };
+  const T = totals(X.cur), d = deltaPct(T.spent, totals(X.prev)), net = T.received - T.spent;
+  const prevQs = P.step(-1), nextQs = P.step(1), canPrev = prevQs && P.start > state.earliest;
+  let proj = '';
+  if (P.kind === 'month' && P.partial && P.d >= 7) {
+    const fixed = X.cur.filter(t => FIXED.has(t.category)).reduce((a, t) => a + t._s, 0);
+    proj = `<p class="proj">Projected month-end: <b>${money(Math.round(fixed + (T.spent - fixed) / P.d * P.N))}</b></p>`;
+  }
+  const hero = `<section class="hero" aria-live="polite"><div class="month-nav">` +
+    `<button type="button" aria-label="Previous period" ${canPrev ? `data-go="#/overview?${prevQs}"` : 'disabled'}>‹</button>` +
+    `<span>${esc(P.label)}${P.sofar ? `<small>${esc(P.sofar)}</small>` : ''}</span>` +
+    `<button type="button" aria-label="Next period" ${nextQs ? `data-go="#/overview?${nextQs}"` : 'disabled'}>›</button></div>` +
+    `<div class="label">Spent</div><div class="total"><small>${esc(state.currency)}</small>${fmt(T.spent)}</div>` +
+    `<span class="delta">${d === null ? 'new' : `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}% vs ${esc(P.prevLabel)}`}</span>` +
+    (T.refunds ? `<div class="refunds">incl. −${fmt(T.refunds)} refunds</div>` : '') +
+    `<div class="kpis"><div><span>Received</span><b>${fmt(T.received)}</b></div><div><span>Net</span><b>${fmt(net)}</b></div>` +
+    `<div><span>Savings rate</span><b>${T.received ? Math.round(net / T.received * 100) + '%' : '–'}</b></div>` +
+    `<div><span>Daily average</span><b>${fmt(Math.round(T.spent / Math.max(1, P.days)))}</b></div></div>${proj}</section>`;
+  const review = state.sum.to_review.length;
+  const cats = spendGroups(X.cur, t => t.category), merch = spendGroups(X.cur, t => t.merchant), accts = spendGroups(X.cur, t => t.account);
+  const rec = recurring(state.all).filter(r => r.active), large = largeOnes(state.all).filter(l => l.t._d >= P.start && l.t._d <= P.end);
+  const cash = totals(X.cur.filter(t => t.category === 'Cash')).spent;
+  const q = P.qs, share = v => T.spent > 0 ? v / T.spent : 0;
+  const ln = (href, name, sub, v) => `<a class="ln" href="${href}"><span class="nm"><b>${name}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="v">${v}</span>${go1}</a>`;
+  return { html: chips(P) + hero +
+    (review ? `<a class="banner" href="#/activity?${q}"><span>Needs a category · ${review}</span>${go1}</a>` : '') +
+    card('Where it went', esc(state.currency), catRows(cats.slice(0, 4), T.spent, X, P) || empty('No spending in this period'), cats.length ? `#/categories?${q}` : '') +
+    card('Spent, last 12 months', 'tap a month', monthBars(state.all, P.endMonth, P), `#/trends?${q}`) +
+    card('Top merchants', '', merch.slice(0, 3).map(e => rk({ href: link('merchant', e.key, {}, P), icon: '🏪', name: merName(e.key), sub: plural(e.n, 'visit'), value: e.spent, pct: share(e.spent) })).join('') || empty('No merchants yet'), merch.length ? `#/merchants?${q}` : '') +
+    card('Cards &amp; accounts', '', accts.slice(0, 3).map(e => rk({ href: link('account', e.key, {}, P), icon: '💳', nameHtml: splitAcct(e.key), sub: plural(e.count, 'transaction'), value: e.spent, pct: share(e.spent) })).join('') || empty('No card spending yet'), accts.length ? `#/cards?${q}` : '') +
+    card('Insights', '', ln(`#/trends?${q}`, 'Trends', 'Spent vs received, by weekday', '') +
+      ln(`#/income?${q}`, 'Income', 'What came in', fmt(T.received)) +
+      ln(`#/recurring?${q}`, 'Recurring payments', `${rec.length} active`, `${fmt(rec.reduce((a, r) => a + r.monthly, 0))}/mo`) +
+      ln(`#/large?${q}`, 'Large transactions', 'Far above the usual', String(large.length)) +
+      ln(`#/cash?${q}`, 'Cash withdrawals', 'ATM and cash', fmt(cash))) };
+}
+function catRows(groups, total, X, P, f = {}) {
+  const prev = new Map(spendGroups(X.prev.filter(matches(f)), t => t.category).map(e => [e.key, e]));
+  return groups.map(e => rk({ href: link('category', e.key, f, P), icon: icon(e.key), name: e.key, sub: plural(e.n || e.count, 'transaction'),
+    value: e.spent, vsub: deltaHtml(deltaPct(e.spent, prev.get(e.key))), pct: total > 0 ? e.spent / total : 0 }) +
+    (e.key === 'Uncategorized' ? `<a class="sublink" href="#/activity?${P.qs}">Needs a category ›</a>` : '')).join('');
+}
+function categories(rt, P, X) {
+  const T = totals(X.cur), cats = spendGroups(X.cur, t => t.category);
+  return { html: chips(P) + card('By category', `${esc(state.currency)} ${fmt(T.spent)}`, catRows(cats, T.spent, X, P) || empty('No spending in this period')) };
+}
+function merchants(rt, P, X) {
+  const T = totals(X.cur), list = spendGroups(X.cur, t => t.merchant);
+  if (state.merchSort === 'visits') list.sort((a, b) => b.n - a.n || b.spent - a.spent);
+  const sort = `<div class="seg" role="group" aria-label="Sort by">${['spent', 'visits'].map(k => `<button type="button" data-sort="${k}" aria-pressed="${state.merchSort === k}">${k === 'spent' ? 'Spent' : 'Visits'}</button>`).join('')}</div>`;
+  return { html: chips(P) + `<section class="card"><h2>${plural(list.length, 'merchant')} ${sort}</h2>` +
+    (list.map(e => rk({ href: link('merchant', e.key, {}, P), icon: '🏪', name: merName(e.key), sub: `${plural(e.n, 'visit')} · avg ${fmt(e.n ? Math.round(Math.max(0, e.spent) / e.n) : 0)}`,
+      value: e.spent, pct: T.spent > 0 ? e.spent / T.spent : 0 })).join('') || empty('No merchants in this period')) + '</section>' };
+}
+function cards(rt, P, X) {
+  const T = totals(X.cur), list = spendGroups(X.cur, t => t.account);
+  return { html: chips(P) + card('Cards &amp; accounts', `${esc(state.currency)} ${fmt(T.spent)}`, list.map(e => {
+    const top = spendGroups(e.list, t => t.category)[0];
+    return rk({ href: link('account', e.key, {}, P), icon: '💳', nameHtml: splitAcct(e.key), sub: `${plural(e.count, 'transaction')}${top ? ' · ' + esc(top.key) : ''}`, value: e.spent, pct: T.spent > 0 ? e.spent / T.spent : 0 });
+  }).join('') || empty('No card spending in this period')) };
+}
+function activity(rt, P, X) {
+  const todo = state.sum.to_review;
+  return { html: chips(P) +
+    (todo.length ? `<section class="todo" id="todo"><h2>Needs a category · ${todo.length}</h2><p>Tap one, pick a category and save. It moves to your list.</p>${prep(todo).map(t => row(t, true)).join('')}</section>` : '<div id="todo" hidden></div>') +
+    txnList(X.cur.filter(t => t.category !== 'Uncategorized'), 'Transactions', true, periodText(P)) };
+}
+// One template for every drill-down: category, merchant, card, month, day (and Cash), with the filter narrowing it.
+function drill(rt, P, X, kind) {
+  const f = filterOf(rt);
+  if (Object.values(f).some(v => v === null || v === undefined) || (kind === 'month' && P.m !== rt.arg) || (kind === 'day' && P.kind !== 'day'))
+    return { title: 'Not found', html: `<section class="card">${empty('Nothing to show', 'This link is not valid.')}</section>` };
+  const m = matches(f), cur = X.cur.filter(m), T = totals(cur), Tp = totals(X.prev.filter(m)), all = totals(X.cur).spent, d = deltaPct(T.spent, Tp);
+  const extras = Object.entries(f).filter(([k]) => k !== { category: 'category', cash: 'category', merchant: 'merchant', card: 'account' }[kind]).map(([k, v]) => k === 'merchant' ? merName(v) : v);
+  const title = kind === 'cash' ? 'Cash withdrawals' : kind === 'category' ? f.category : kind === 'merchant' ? merName(f.merchant) : kind === 'card' ? f.account : kind === 'month' ? monthName(P.m) : P.label;
+  const sub = [{ category: 'Category', cash: 'Cash', merchant: 'Merchant', card: 'Card', month: 'Month', day: 'Day' }[kind], ...extras, kind === 'day' ? '' : periodText(P)].filter(Boolean).join(' · ');
+  const stat = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  let html = `<section class="card"><div class="big"><span class="muted">Spent</span><b>${money(T.spent)}</b>${kind === 'day' ? '' : `<span class="pill">${d === null ? 'new' : `${deltaHtml(d)} vs ${esc(P.prevLabel)}`}</span>`}</div><dl class="stats">` +
+    (Object.keys(f).length ? stat('Share of period spend', all > 0 ? Math.round(T.spent / all * 100) + '%' : '–') : stat('Received', fmt(T.received))) +
+    stat('Transactions', T.count) + stat('Avg per transaction', fmt(T.n ? Math.round(Math.max(0, T.spent) / T.n) : 0)) +
+    (T.received && Object.keys(f).length ? stat('Received', fmt(T.received)) : '') + (T.refunds ? stat('Refunds', '−' + fmt(T.refunds)) : '') + '</dl>' +
+    (kind === 'day' ? '' : monthBars(state.all.filter(m), P.endMonth, P, { mini: true, href: false })) + '</section>';
+  if (kind === 'merchant') {  // how often you go there, across all time
+    const visits = state.all.filter(t => m(t) && t._s > 0).sort((a, b) => a._d < b._d ? -1 : 1);
+    const gaps = visits.slice(1).map((t, i) => dayNum(t._d) - dayNum(visits[i]._d));
+    html += card('Visits', '', `<dl class="stats">${stat('Visits in period', T.n)}${stat('Avg ticket', fmt(T.n ? Math.round(Math.max(0, T.spent) / T.n) : 0))}` +
+      `${stat('Days between visits', gaps.length ? `${Math.round(median(gaps))} (median)` : '–')}${stat('Visits all time', visits.length)}` +
+      `${stat('First seen', visits.length ? shortDay(visits[0]._d) + ' ' + visits[0]._d.slice(0, 4) : '–')}${stat('Last seen', visits.length ? shortDay(visits[visits.length - 1]._d) + ' ' + visits[visits.length - 1]._d.slice(0, 4) : '–')}</dl>`);
+  }
+  if (kind === 'month') {
+    const per = new Map(); for (const t of cur) per.set(t._d, (per.get(t._d) || 0) + t._s);
+    const days = Array.from({ length: P.N }, (_, i) => `${P.m}-${pad(i + 1)}`), max = Math.max(1, ...days.map(x => per.get(x) || 0));
+    html += card('By day', 'tap a day', `<div class="bars days">${days.map((x, i) => `<a href="#/day/${x}" aria-label="${esc(longDay(x))}: ${money(per.get(x) || 0)}" title="${esc(shortDay(x))}: ${fmt(per.get(x) || 0)}">` +
+      `<span class="area"><span class="col" style="height:${(Math.max(0, per.get(x) || 0) / max * 100).toFixed(1)}%"></span></span><span class="m" aria-hidden="true">${(i + 1) % 7 === 1 ? i + 1 : ''}</span></a>`).join('')}</div>`);
+  }
+  const order = { category: ['merchant', 'account'], cash: ['merchant', 'account'], merchant: ['category', 'account'], card: ['category', 'merchant'], month: ['category'], day: [] }[kind];
+  for (const dim of order.filter(k => !(k in f))) {
+    const groups = spendGroups(cur, t => t[dim]);
+    if (groups.length < 2) continue;  // one row would only repeat the total above
+    html += dim === 'category' ? card('Categories', '', catRows(groups, T.spent, X, P, f))
+      : card(dim === 'merchant' ? 'Merchants' : 'Cards &amp; accounts', '', groups.map(e => rk({ href: link(dim, e.key, f, P), icon: dim === 'merchant' ? '🏪' : '💳',
+        ...(dim === 'account' ? { nameHtml: splitAcct(e.key) } : { name: merName(e.key) }), sub: plural(e.n || e.count, dim === 'merchant' ? 'visit' : 'transaction'),
+        value: e.spent, pct: T.spent > 0 ? e.spent / T.spent : 0 })).join(''));
+  }
+  return { title, sub, html: html + txnList(cur, 'Transactions', kind !== 'day') };
+}
+function trends(rt, P, X) {
+  const wk = Array(7).fill(0), cnt = Array(7).fill(0);
+  for (let n = dayNum(P.start); n <= dayNum(P.end); n++) cnt[new Date(n * 864e5).getUTCDay()]++;
+  for (const t of X.cur) wk[new Date(t._d + 'T00:00:00Z').getUTCDay()] += t._s;
+  const avg = [1, 2, 3, 4, 5, 6, 0].map(i => [new Date(Date.UTC(2024, 0, i || 7)).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }), cnt[i] ? Math.round(wk[i] / cnt[i]) : 0]);
+  const max = Math.max(1, ...avg.map(a => a[1]));
+  return { title: 'Trends', sub: periodText(P), html:
+    card('Spent vs received', esc(state.currency), `<p class="legend"><span><i style="background:var(--bar)"></i>Spent</span><span><i style="background:var(--bar-2)"></i>Received</span></p>` + monthBars(state.all, P.endMonth, P, { received: true })) +
+    card('Average spend by weekday', esc(periodText(P)), avg.map(([name, v]) => rk({ icon: name.slice(0, 2), name, value: v, bar: v / max })).join('')) };
+}
+function income(rt, P, X) {
+  const credits = X.cur.filter(t => t._r > 0), T = totals(X.cur);
+  const groups = group(credits, t => t.merchant || t.account).sort((a, b) => b.received - a.received);
+  const months = lastMonths(P.endMonth, 12), bm = byMonth(state.all), max = Math.max(1, ...months.map(m => (bm.get(m) || {}).received || 0));
+  return { title: 'Income', sub: periodText(P), html:
+    `<section class="card"><div class="big"><span class="muted">Received</span><b>${money(T.received)}</b></div>` +
+    `<div class="bars">${months.map(m => { const v = (bm.get(m) || {}).received || 0; return `<a href="#/month/${m}" class="${m >= P.start.slice(0, 7) && m <= P.end.slice(0, 7) ? 'sel' : ''}" aria-label="${esc(monthName(m))}: received ${money(v)}" title="${esc(monthName(m))}: ${fmt(v)}"><span class="area"><span class="col r" style="height:${(v / max * 100).toFixed(1)}%"></span></span><span class="m" aria-hidden="true">${new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'narrow' })}</span></a>`; }).join('')}</div></section>` +
+    card('By sender', '', groups.map(e => { const t = e.list[0]; return rk({ href: t.merchant ? link('merchant', t.merchant, {}, P) : link('account', t.account, {}, P), icon: icon(t.category), name: e.key, sub: plural(e.count, 'credit'), value: e.received, pct: T.received ? e.received / T.received : 0 }); }).join('') || empty('Nothing received in this period')) +
+    `<section class="card"><h2>Credits</h2>${dayGroups(credits) || empty('No credits in this period')}</section>` };
+}
+function recurringPage(rt, P) {
+  const all = recurring(state.all), active = all.filter(r => r.active), stopped = all.filter(r => !r.active);
+  const max = Math.max(1, ...all.map(r => r.monthly));
+  const rows = list => list.map(r => rk({ href: link('merchant', r.merchant, {}, P), icon: icon(r.category), name: r.merchant,
+    sub: `${r.cadence} · ${r.active ? 'next ~' + shortDay(r.next) : 'last ' + shortDay(r.last)}${r.priceUp ? ` · <span class="up">price up to ${fmt(r.latest)}</span>` : ''}`,
+    value: r.A, vsub: `≈ ${fmt(r.monthly)}/mo`, bar: r.monthly / max })).join('');
+  return { title: 'Recurring payments', sub: `${active.length} active`, html:
+    card('Active', `${esc(state.currency)} ${fmt(active.reduce((a, r) => a + r.monthly, 0))}/mo`, rows(active) || empty('No recurring payments found', 'A merchant needs 3 or more payments at a steady interval and amount.')) +
+    (stopped.length ? card('No longer active', '', rows(stopped)) : '') };
+}
+function largePage(rt, P) {
+  const list = largeOnes(state.all).filter(l => l.t._d >= P.start && l.t._d <= P.end), max = Math.max(1, ...list.map(l => l.t._c));
+  return { title: 'Large transactions', sub: periodText(P), html: card(plural(list.length, 'transaction'), `≥ ${LARGE_MIN[state.currency] ?? 200} ${esc(state.currency)}`,
+    list.map(({ t, x }) => rk({ href: link('merchant', t.merchant, {}, P), icon: icon(t.category), name: merName(t.merchant), sub: `${esc(t.category)} · ${shortDay(t._d)}`,
+      value: t._c, vsub: `${x.toFixed(1)}× usual`, bar: t._c / max })).join('') || empty('Nothing unusually large', 'Large means at least 3× what that merchant (or category) usually costs.')) };
+}
 const ago = iso => {
   const min = Math.round((Date.now() - new Date(iso)) / 60000);
   return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
 };
-
-function render(s) {
-  state.last = s;
-  $('version').textContent = `Version ${s.version || 'unknown'}`;
+function settings() {
   // Receipts for what the phone sent, so you can check a message arrived (and what happened to it).
-  const deliveries = s.deliveries || [], last = deliveries[0];
-  $('phone-last').innerHTML = last
-    ? `Last SMS from your phone: <b>${ago(last.at)}</b> · ${esc(last.outcome)}`
-    : '<span class="bad">No SMS from your phone in the last 7 days.</span> Check the forwarder app: the address, the password after "Bearer", and that Samsung isn\'t putting it to sleep.';
-  $('deliveries').innerHTML = deliveries.map(d => `<li class="delivery"><span>${ago(d.at)} · ${esc(d.sender)}</span>` +
-    `<span class="${d.outcome.startsWith('refused') ? 'bad' : ''}">${esc(d.outcome)}</span></li>`).join('');
-  // Ignored ones are left out of everything and listed separately, so they can be brought back.
-  // Ignored ones are hidden behind a link; uncategorized ones sit in "Needs a category" until you sort them.
-  const counted = s.transactions.filter(t => !NOT_COUNTED.has(t.category));
-  const txns = counted.filter(t => t.category !== 'Uncategorized'), ignored = s.transactions.filter(t => NOT_COUNTED.has(t.category));
-  Object.assign(state, { month: s.month, currency: s.currency });
-  const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const money = n => `${s.currency} ${num.format(n)}`;
-  const short = n => n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : Math.round(n);
+  const deliveries = state.sum.deliveries || [], last = deliveries[0];
+  return { title: 'Settings', html:
+    `<section class="card"><a class="ln" href="/import"><span class="nm"><b>Import old SMS</b><small>Add messages from before the phone was connected</small></span>${go1}</a></section>` +
+    card('Phone connection', 'last 7 days', `<p class="phone-last">${last ? `Last SMS from your phone: <b>${ago(last.at)}</b> · ${esc(last.outcome)}`
+      : '<span class="bad">No SMS from your phone in the last 7 days.</span> Check the forwarder app: the address, the password after "Bearer", and that Samsung isn\'t putting it to sleep.'}</p>` +
+      `<ul class="rows">${deliveries.map(d => `<li class="delivery"><span>${ago(d.at)} · ${esc(d.sender)}</span><span class="${d.outcome.startsWith('refused') ? 'bad' : ''}">${esc(d.outcome)}</span></li>`).join('')}</ul>`) +
+    `<section class="card"><form method="post" action="/logout" onsubmit="cache.clear()"><button class="btn">Sign out</button></form></section>` +
+    `<p class="version">Version ${esc(state.sum.version || 'unknown')}</p>` };
+}
+function searchPage() {
+  return { title: 'Search', html: `<section class="card"><input type="search" id="search" class="search" placeholder="Merchant, amount, card, any word" aria-label="Search all SMS" autocomplete="off" enterkeyhint="search" value="${esc(state.search)}"><div id="results"></div></section>` };
+}
+function renderResults() {
+  const r = state.results;
+  $('results').innerHTML = !state.search ? '<p class="muted">Searches every month’s SMS.</p>' : !r ? '<p class="muted">Searching…</p>'
+    : `<p class="filter">“${esc(state.search)}” · ${plural(r.count, 'result')}${r.count > r.results.length ? ` (newest ${r.results.length} shown)` : ''} · ${money(Math.round(r.spent * 100))} spent</p>` +
+      (prep(r.results).map(t => row(t, true)).join('') || empty(`No SMS match “${esc(state.search)}”`, "Try one word, a merchant name, an amount or a card's last 4 digits."));
+}
+const PAGES = { overview, categories, merchants, cards, activity,
+  category: (r, P, X) => drill(r, P, X, 'category'), merchant: (r, P, X) => drill(r, P, X, 'merchant'), card: (r, P, X) => drill(r, P, X, 'card'),
+  month: (r, P, X) => drill(r, P, X, 'month'), day: (r, P, X) => drill(r, P, X, 'day'), cash: (r, P, X) => drill(r, P, X, 'cash'),
+  trends, income, recurring: recurringPage, large: largePage, search: searchPage, settings };
+const TITLES = Object.fromEntries(TABS.map(([k, label]) => [k, label]));
 
+function render() {
+  const rt = parseRoute(), P = period(rt.q, rt), isTab = rt.name in TITLES;
+  const changed = rt.hash !== lastHash; lastHash = rt.hash;
   // Currency switch: SAR first.
-  const currencies = [...new Set(['SAR', ...s.currencies])];
-  $('currency').innerHTML = currencies.map(c => `<button type="button" aria-pressed="${c === s.currency}" data-c="${c}">${c}</button>`).join('');
-
-  // Hero
-  const months = s.months.map(m => m.month);
-  if (!months.includes(s.month)) months.push(s.month);
-  months.sort();
-  const i = months.indexOf(s.month);
-  $('prev').disabled = i <= 0; $('next').disabled = i >= months.length - 1;
-  $('prev').onclick = () => { state.month = months[i - 1]; load(); };
-  $('next').onclick = () => { state.month = months[i + 1]; load(); };
-  $('month-label').textContent = monthName(s.month);
-  const cur = s.months.find(m => m.month === s.month) || { spent: 0, received: 0 };
-  const prev = s.months.find(m => m.month === months[i - 1]);
-  $('spent').innerHTML = `<small>${s.currency}</small>${num.format(cur.spent)}`;
-  $('received').textContent = money(cur.received);
-  $('count').textContent = counted.length;
-  if (prev && prev.spent > 0) {
-    const pct = Math.round((cur.spent - prev.spent) / prev.spent * 100);
-    $('delta').innerHTML = `<span class="delta">${pct > 0 ? '▲' : pct < 0 ? '▼' : '='} ${Math.abs(pct)}% ${pct > 0 ? 'more' : pct < 0 ? 'less' : 'same'} than ${monthName(prev.month, 'short').split(' ')[0]}</span>`;
-  } else $('delta').innerHTML = '';
-  $('hero').classList.remove('skeleton');
-
-  // Categories
-  const cats = Object.entries(s.by_category);
-  const totalSpent = cats.reduce((a, [, v]) => a + v, 0);
-  $('cat-total').textContent = cats.length ? `${cats.length} categories` : '';
-  $('cats').innerHTML = cats.map(([c, v]) => {
-    const pct = totalSpent ? v / totalSpent * 100 : 0;
-    return `<li><button type="button" class="cat" data-cat="${esc(c)}" aria-pressed="${c === state.category}" aria-label="Show ${esc(c)} transactions">` +
-      `<div class="cat-top"><span class="emoji" aria-hidden="true">${icon(c)}</span><span class="name">${esc(c)}</span>` +
-      `<span class="amt">${money(v)}</span><span class="pct">${Math.round(pct)}%</span><span class="go" aria-hidden="true">›</span></div>` +
-      `<div class="track" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div></button></li>`;
-  }).join('') || '<li class="empty">No spending this month</li>';
-
-  // Trend: last 6 months up to the selected one; tap a bar to open that month.
-  const window6 = months.slice(Math.max(0, i - 5), i + 1);
-  const spentOf = m => (s.months.find(x => x.month === m) || { spent: 0 }).spent;
-  const max = Math.max(...window6.map(spentOf), 1);
-  $('trend').innerHTML = window6.map(m => {
-    const v = spentOf(m);
-    return `<button type="button" data-m="${m}" aria-pressed="${m === s.month}" aria-label="${monthName(m)}: ${money(v)}" title="${monthName(m)}: ${money(v)}">` +
-      `<div class="col" style="height:${Math.max(v / max * 100, 1.5).toFixed(1)}%"><em>${short(v)}</em></div>` +
-      `<span class="m">${monthName(m, 'short').split(' ')[0]}</span></button>`;
-  }).join('');
-
-  // Merchants
-  $('merchants').innerHTML = Object.entries(s.top_merchants).slice(0, 5)
-    .map(([m, v]) => `<li><button type="button" class="merchant cat" data-merchant="${esc(m)}" aria-pressed="${state.merchant === (m === '(unknown)' ? '' : m)}" aria-label="Show ${esc(m)} transactions">` +
-      `<span>${esc(m)}</span><span>${money(v)} <span class="go" aria-hidden="true">›</span></span></button></li>`).join('')
-    || '<li class="empty">No merchants yet</li>';
-  $('accounts').innerHTML = Object.entries(s.by_account || {})
-    .map(([a, v]) => `<li><button type="button" class="merchant cat" data-account="${esc(a)}" aria-pressed="${state.account === a}" aria-label="Show ${esc(a)} transactions">` +
-      `<span>💳 ${esc(a)}</span><span>${money(v)} <span class="go" aria-hidden="true">›</span></span></button></li>`).join('')
-    || '<li class="empty">No card spending yet</li>';
-
-  // Transactions grouped by day (dates are the phone's local time, so read them from the string as-is).
-  const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const yest = new Date(today); yest.setDate(today.getDate() - 1);
-  const dayLabel = d => d === iso(today) ? 'Today' : d === iso(yest) ? 'Yesterday'
-    : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-  const row = (t, withDate) => {
-    const unsure = t.category === 'Uncategorized', ignored = NOT_COUNTED.has(t.category);
-    const options = s.categories.map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
-    return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" data-key="${esc(ruleKey(t))}" ${unsure ? 'data-unsure' : ''}>` +
-      `<summary><span class="emoji" aria-hidden="true">${t.category === OWN_TRANSFER ? '🔁' : ignored ? '🚫' : icon(t.category)}</span>` +
-      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? `${t.category === OWN_TRANSFER ? 'Own transfer' : 'Ignored'}, not counted` : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}<br>💳 ${esc(t.account)}</small></span>` +
-      `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
-      `<pre>${esc(t.body)}</pre>` +
-      `<form class="fix"><label>${unsure ? 'Category' : 'Wrong category? Choose the right one'}<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
-      `<option value="__new">+ New category…</option><option value="${OWN_TRANSFER}" ${t.category === OWN_TRANSFER ? 'selected' : ''}>🔁 Own transfer (don't count)</option>` +
-      `<option value="${IGNORED}" ${t.category === IGNORED ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
-      `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
-      `<label class="check"><input type="checkbox" name="all" checked>${t.merchant ? `Apply to all from ${esc(t.merchant)}` : 'Apply to all similar messages'}, including future SMS</label>` +
-      `<div><button>Save</button></div></form></details>`;
-  };
-  // Tapping a category in "Where it went" narrows the list to it.
-  // Tapping a merchant in "Top merchants" does the same for that merchant.
-  const filtering = state.category || state.merchant !== null || state.account;
-  // A filtered view includes not-yet-sorted ones too, so its list adds up to the total you tapped.
-  const shown = state.category ? counted.filter(t => t.category === state.category)
-    : state.merchant !== null ? counted.filter(t => t.merchant === state.merchant)
-    : state.account ? counted.filter(t => t.account === state.account) : txns;
-  const shownTotal = shown.reduce((a, t) => a + (t.direction === 'debit' ? t.amount : 0), 0);
-  const label = state.category ? `${icon(state.category)} <b>${esc(state.category)}</b>`
-    : state.account ? `💳 <b>${esc(state.account)}</b>` : `🏪 <b>${esc(state.merchant || 'Unknown merchant')}</b>`;
-  $('filter').innerHTML = filtering ? `<div class="filter"><span>${label} · ` +
-    `${shown.length} transaction${shown.length === 1 ? '' : 's'} · ${money(shownTotal)}</span><button type="button" id="clear-filter">✕ Show all</button></div>` : '';
-  let lastDay = '';
-  $('txns').innerHTML = shown.map(t => {
-    const day = t.received_at.slice(0, 10), header = day !== lastDay ? `<div class="day">${dayLabel(day)}</div>` : '';
-    lastDay = day;
-    return header + row(t, false);
-  }).join('') || (filtering ? `<div class="empty"><b>Nothing here in ${monthName(s.month)}</b></div>` : '') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
-  $('ignored').innerHTML = ignored.length
-    ? `<button type="button" class="link" aria-expanded="${state.showIgnored}" id="toggle-ignored">${state.showIgnored ? 'Hide' : 'Show'} ${ignored.length} not counted (own transfers &amp; ignored)</button>` +
-      (state.showIgnored ? ignored.map(t => row(t, true)).join('') : '')
-    : '';
-  const todo = s.to_review;
-  $('todo').innerHTML = todo.length && !filtering ? `<div class="todo"><h3>Needs a category · ${todo.length}</h3>` +
-    `<p>Tap one, pick a category and save. It moves to your list.</p>${todo.map(t => row(t, true)).join('')}</div>` : '';
-  if (state.results) {  // searching: matches from every month replace this month's list
-    const r = state.results;
-    $('todo').innerHTML = ''; $('ignored').innerHTML = '';
-    $('filter').innerHTML = `<div class="filter"><span>🔎 <b>“${esc(state.search)}”</b> · ${r.count} result${r.count === 1 ? '' : 's'}` +
-      `${r.count > r.results.length ? ` (newest ${r.results.length} shown)` : ''} · ${money(r.spent)} spent</span><button type="button" id="clear-search">✕ Clear</button></div>`;
-    $('txns').innerHTML = r.results.map(t => row(t, true)).join('')
-      || `<div class="empty"><b>No SMS match “${esc(state.search)}”</b>Try one word, a merchant name, an amount or a card's last 4 digits.</div>`;
+  const currencies = [...new Set(['SAR', ...(state.sum?.currencies || []), state.currency].filter(Boolean))];
+  $('currency').innerHTML = currencies.map(c => `<button type="button" aria-pressed="${c === state.currency}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
+  const review = state.sum?.to_review.length || 0, parent = isTab ? rt.name : PARENT[rt.name] || 'overview';
+  $('tabs').innerHTML = TABS.map(([k, label, svg]) => `<a href="#/${k}?${P.qs}" data-replace ${k === rt.name ? 'aria-current="page"' : ''} class="${k === parent ? 'on' : ''}">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg}</svg>${label}` +
+    (k === 'activity' && review ? `<span class="badge" aria-label="${review} need a category">${review > 99 ? '99+' : review}</span>` : '') + '</a>').join('');
+  if (rt.name === 'search' && $('search') && !changed) { renderResults(); return; }  // keep the box (and keyboard) while typing
+  let page;
+  if (!state.sum) page = { html: `<section class="card">${empty('Loading…')}</section>` };
+  else {
+    const inR = (a, b) => t => t._d >= a && t._d <= b;
+    page = PAGES[rt.name](rt, P, { cur: state.all.filter(inR(P.start, P.end)), prev: state.all.filter(inR(P.prevStart, P.prevEnd)) });
   }
+  $('appbar').classList.toggle('drill', !isTab);
+  $('back').hidden = isTab;
+  $('title').textContent = page.title || TITLES[rt.name] || '';
+  $('title').title = page.title || '';
+  $('sub').hidden = !page.sub; $('sub').textContent = page.sub || '';
+  document.title = `${$('title').textContent} · Expenses`;
+  $('view').innerHTML = page.html;
+  if (rt.name === 'search' && $('search')) {
+    renderResults();
+    const q = rt.q.get('q') || state.search;
+    if (changed && q && (q !== state.search || !state.results)) { $('search').value = q; runSearch(); }
+  }
+  if (changed && lastHash !== null) {
+    scrollTo(0, popped ? scrolls[rt.hash] || 0 : 0);
+    if (rt.name === 'search') $('search')?.focus(); else if (render.done) $('title').focus({ preventScroll: true });
+  }
+  render.done = true;
 }
 
+/* ---------- Search ---------- */
 let searchTimer;
 async function runSearch() {
-  const q = $('search').value.trim();
+  const box = $('search'), q = (box ? box.value : state.search).trim();
   state.search = q;
-  if (!q) { state.results = null; if (state.last) render(state.last); return; }
+  if (!box) { state.results = null; return; }  // not on the search page: search again when it is opened
+  history.replaceState(history.state, '', q ? `#/search?q=${enc(q)}` : '#/search'); lastHash = location.hash;
+  if (!q) { state.results = null; if ($('results')) renderResults(); return; }
+  state.results = null; renderResults();
   try {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&currency=${state.currency}`);
+    const r = await fetch(`/api/search?q=${enc(q)}&currency=${enc(state.currency)}`);
     if (r.status === 401) { location.href = '/login'; return; }
     if (!r.ok) throw new Error(r.status);
     const found = await r.json();
     if (state.search !== q) return;  // you kept typing; a newer search is on its way
     state.results = found;
-    render(state.last);
+    if ($('results')) renderResults();
   } catch { toast('Search failed. Try again.'); }
 }
-$('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 300); });
+document.addEventListener('input', e => { if (e.target.id === 'search') { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 300); } });
 
 function reviewNext() {
   const next = document.querySelector('#todo details.txn');
   if (!next) return;
   next.open = true;
-  next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  next.scrollIntoView({ behavior: smooth, block: 'center' });
   next.querySelector('select').focus({ preventScroll: true });
 }
-
 function toast(text) {
   $('toast').textContent = text; $('toast').hidden = false;
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('toast').hidden = true; }, 3500);
 }
 
-$('cats').addEventListener('click', e => {
-  const c = e.target.closest('.cat')?.dataset.cat;
-  if (c === undefined) return;
-  Object.assign(state, { category: state.category === c ? '' : c, merchant: null, account: '' });
-  load();
-  $('txn-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+/* ---------- Events ---------- */
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-replace]');
+  if (a) { e.preventDefault(); go(a.getAttribute('href'), true); return; }
+  const b = e.target.closest('[data-go]');
+  if (b) { go(b.dataset.go, true); return; }
+  if (e.target.closest('#back')) {
+    const rt = parseRoute();
+    if (depth > 0) history.back();
+    else go(`#/${PARENT[rt.name] || 'overview'}?${period(rt.q, rt).qs}`, true);  // opened from a link: go up instead of leaving
+    return;
+  }
+  const sort = e.target.closest('[data-sort]')?.dataset.sort;
+  if (sort) { state.merchSort = sort; render(); return; }
+  if (e.target.id === 'toggle-ignored') { state.showIgnored = !state.showIgnored; render(); return; }
+  const c = e.target.closest('#currency button')?.dataset.c;
+  if (c && c !== state.currency) {
+    state.currency = c; cache.set('currency', c); state.results = null;
+    load().then(() => state.search && runSearch());
+  }
 });
-$('merchants').addEventListener('click', e => {
-  const m = e.target.closest('.merchant')?.dataset.merchant;
-  if (m === undefined) return;
-  const merchant = m === '(unknown)' ? '' : m;
-  Object.assign(state, { merchant: state.merchant === merchant ? null : merchant, category: '', account: '' });
-  load();
-  $('txn-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-$('filter').addEventListener('click', e => {
-  if (e.target.id === 'clear-filter') { Object.assign(state, { category: '', merchant: null, account: '' }); load(); }
-  if (e.target.id === 'clear-search') { $('search').value = ''; runSearch(); }
-});
-$('accounts').addEventListener('click', e => {
-  const a = e.target.closest('[data-account]')?.dataset.account;
-  if (a === undefined) return;
-  Object.assign(state, { account: state.account === a ? '' : a, category: '', merchant: null });
-  load();
-  $('txn-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-$('ignored').addEventListener('click', e => {
-  if (e.target.id === 'toggle-ignored') { state.showIgnored = !state.showIgnored; load(); }
-});
-// Listen on the document so rows in both the main list and the ignored list work.
+// Listen on the document so rows in every list work.
 document.addEventListener('change', e => {
   if (e.target.name === 'category') e.target.form.querySelector('[name=custom]').parentElement.hidden = e.target.value !== '__new';
 });
 document.addEventListener('submit', async e => {
   if (!e.target.matches('form.fix')) return;  // leave the sign-out form alone
   e.preventDefault();
-  const form = e.target, row = form.closest('details');
+  const form = e.target, row = form.closest('details'), f = filterOf(parseRoute());
   const chosen = form.category.value === '__new' ? form.custom.value.trim() : form.category.value;
   if (!chosen) { (form.category.value === '__new' ? form.custom : form.category).focus(); return; }
   const all = form.all ? form.all.checked : false;
@@ -466,7 +827,7 @@ document.addEventListener('submit', async e => {
   // Saved ones leave the list the moment you tap Save (with "apply to all", every entry the rule covers does);
   // the server's answer then redraws the screen, or puts everything back if saving failed.
   // A re-sorted row stays in the full list, but leaves a category view it no longer belongs to.
-  const leavesList = wasReviewing || NOT_COUNTED.has(chosen) || (state.category && chosen !== state.category);
+  const leavesList = wasReviewing || NOT_COUNTED.has(chosen) || (f.category !== undefined && chosen !== f.category);
   const leaving = !leavesList ? [] : all
     ? [...document.querySelectorAll('details.txn')].filter(d => d.dataset.key === row.dataset.key && d.closest('#todo') === row.closest('#todo'))
     : [row];
@@ -476,7 +837,7 @@ document.addEventListener('submit', async e => {
   }
   let reply;
   try {
-    const r = await fetch(`/api/category?month=${state.month}&currency=${state.currency}`, { method: 'POST',
+    const r = await fetch(`/api/category?currency=${enc(state.currency)}`, { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(row.dataset.id), category: chosen, whole_merchant: all }) });
     if (r.status === 401) { location.href = '/login'; return; }
     if (!r.ok) throw new Error(r.status);
@@ -486,9 +847,12 @@ document.addEventListener('submit', async e => {
     await load(true);  // brings back anything that was faded out
     return;
   }
+  if (wasReviewing) await new Promise(ok => setTimeout(ok, 260));  // let the next one open first, so it stays open below
   const open = document.querySelector('details.txn[open]')?.dataset.id;  // keep the next one open across the redraw
-  cache.set(`${state.month}|${state.currency}`, JSON.stringify(reply.summary));
-  render(reply.summary);
+  pending = null;
+  cache.set('s|' + reply.summary.currency, JSON.stringify(reply.summary)); cache.set('t|' + reply.summary.currency, JSON.stringify(reply.all));
+  setData(reply.summary, reply.all);
+  render();
   if (state.search) runSearch();  // refresh the results with the new category
   if (open) document.querySelector(`details.txn[data-id="${open}"]`)?.setAttribute('open', '');
   if (reply.category !== chosen) {  // saved, but something stronger still decides this one: say so instead of pretending
@@ -501,14 +865,7 @@ document.addEventListener('submit', async e => {
     : (all ? `Saved. ${row.dataset.merchant || 'Similar messages'} ${row.dataset.merchant ? 'is' : 'are'} now ${chosen}, including future SMS.` : `Saved as ${chosen}.`));
 });
 
-$('currency').addEventListener('click', e => {
-  const c = e.target.closest('button')?.dataset.c;
-  if (c && c !== state.currency) { Object.assign(state, { currency: c, month: '', category: '', merchant: null, account: '' }); load().then(() => state.search && runSearch()); }
-});
-$('trend').addEventListener('click', e => {
-  const m = e.target.closest('button')?.dataset.m;
-  if (m && m !== state.month) { state.month = m; load(); }
-});
+history.replaceState({ d: 0 }, '');
 load();
 </script>
 </body>
