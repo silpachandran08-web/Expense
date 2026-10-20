@@ -122,7 +122,7 @@
     <a class="icon-btn" href="/import" aria-label="Import old SMS" title="Import old SMS">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
     </a>
-    <form method="post" action="/logout">
+    <form method="post" action="/logout" onsubmit="cache.clear()">
       <button class="icon-btn" aria-label="Sign out" title="Sign out">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       </button>
@@ -171,14 +171,28 @@ const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Tra
 const icon = c => ICONS[c] || '🧾';
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+// The last data seen is kept on this device so the dashboard paints instantly, then refreshes. Cleared on sign out.
+const CACHE = 'expense:';
+const cache = {
+  get: k => { try { return localStorage.getItem(CACHE + k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(CACHE + k, v); } catch {} },
+  clear: () => { try { Object.keys(localStorage).filter(k => k.startsWith(CACHE)).forEach(k => localStorage.removeItem(k)); } catch {} },
+};
 // Session expired or signed out elsewhere: back to the login page.
-const api = url => fetch(url).then(r => r.status === 401 ? (location.href = '/login', new Promise(() => {})) : r.json());
+const api = url => fetch(url).then(r => r.status === 401 ? (cache.clear(), location.href = '/login', new Promise(() => {})) : r.text());
 const monthName = (m, style = 'long') => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: style, year: 'numeric' });
 const state = { month: '', currency: '' };
 
 async function load() {
-  const s = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
-  const txns = await api(`/api/transactions?month=${s.month}&currency=${s.currency}`);
+  const key = `${state.month}|${state.currency}`, cached = cache.get(key);
+  if (cached) render(JSON.parse(cached));
+  const fresh = await api(`/api/summary?month=${state.month}&currency=${state.currency}`);
+  cache.set(key, fresh);
+  if (fresh !== cached) render(JSON.parse(fresh));  // unchanged: leave the screen alone (keeps an open row open)
+}
+
+function render(s) {
+  const txns = s.transactions;
   Object.assign(state, { month: s.month, currency: s.currency });
   const num = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = n => `${s.currency} ${num.format(n)}`;

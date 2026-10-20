@@ -127,6 +127,19 @@ class StoreMixin:
             server.set_category(db, 999999, 'Food', True)
 
 
+class HealthTest(unittest.TestCase):
+    def test_region_advice(self):
+        from types import SimpleNamespace as NS
+        neon = NS(pg=True, reused=False, url='postgresql://u:p@ep-cool-123-pooler.eu-central-1.aws.neon.tech/neondb')
+        os.environ['VERCEL_REGION'] = 'iad1'
+        h = server.health(neon, 420)
+        self.assertEqual((h['server_region'], h['database_region']), ('iad1', 'eu-central-1'))
+        self.assertIn('fra1', h['advice'])
+        os.environ['VERCEL_REGION'] = 'fra1'
+        self.assertEqual(server.health(neon, 30)['advice'], 'Server and database are in the same place.')
+        del os.environ['VERCEL_REGION']
+
+
 class SqliteStoreTest(StoreMixin, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

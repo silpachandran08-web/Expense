@@ -49,16 +49,19 @@ MAX_CATEGORY = 40
 class DB:
     """Postgres when DATABASE_URL is set (Neon on Vercel), else a local SQLite file. Both take :name parameters."""
     _schema_ready = set()
+    # Open Postgres connections kept between requests: a new TLS + login handshake costs several round trips,
+    # and Vercel reuses warm instances. A pool (not one shared connection) because requests can run concurrently.
+    _idle = {}
+    POOL_SIZE = 3
 
     def __init__(self, url=None):
         url = url if url is not None else os.environ.get('DATABASE_URL', '')
+        self.url, self.reused = url, False
         if url.startswith(('postgres://', 'postgresql://')):
-            import pg8000.native
-            u = urlparse(url)
-            tls = parse_qs(u.query).get('sslmode', ['require'])[0] != 'disable'
-            self.conn = pg8000.native.Connection(
-                unquote(u.username or ''), host=u.hostname, port=u.port or 5432, database=u.path.lstrip('/'),
-                password=unquote(u.password or ''), ssl_context=ssl.create_default_context() if tls else None)
+            try:
+                self.conn, self.reused = DB._idle.setdefault(url, []).pop(), True
+            except IndexError:
+                self.conn = self._connect(url)
             self.pg, schema = True, SCHEMA.format(id='BIGSERIAL')
         else:
             url = url or os.environ.get('EXPENSE_DB', str(HERE / 'expense.db'))
@@ -71,15 +74,37 @@ class DB:
                 self.run(extra)
             DB._schema_ready.add(url)
 
+    @staticmethod
+    def _connect(url):
+        import pg8000.native
+        u = urlparse(url)
+        tls = parse_qs(u.query).get('sslmode', ['require'])[0] != 'disable'
+        return pg8000.native.Connection(
+            unquote(u.username or ''), host=u.hostname, port=u.port or 5432, database=u.path.lstrip('/'),
+            password=unquote(u.password or ''), ssl_context=ssl.create_default_context() if tls else None)
+
     def run(self, sql, **params):
         if self.pg:
-            rows = self.conn.run(sql, **params) or []
+            from pg8000.exceptions import InterfaceError
+            try:
+                rows = self.conn.run(sql, **params) or []
+            except (InterfaceError, OSError):
+                if not self.reused:
+                    raise
+                # A kept connection went stale (Neon drops them when it sleeps): reconnect once and retry.
+                # Every statement here is safe to repeat (inserts are ON CONFLICT DO NOTHING / upserts).
+                self.conn, self.reused = self._connect(self.url), False
+                rows = self.conn.run(sql, **params) or []
             names = [c['name'] for c in self.conn.columns or []]
             return [dict(zip(names, r)) for r in rows]
         return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
 
     def close(self):
-        self.conn.close()
+        idle = DB._idle.get(self.url)
+        if self.pg and len(idle) < DB.POOL_SIZE:
+            idle.append(self.conn)
+        else:
+            self.conn.close()
 
 
 def store_many(db, messages):
@@ -141,6 +166,25 @@ def set_category(db, txn_id, category, whole_merchant):
                'ON CONFLICT (txn_id) DO UPDATE SET category = excluded.category', id=txn_id, c=category)
 
 
+# Neon (AWS) region -> the Vercel region in the same city, where the server should run.
+VERCEL_REGION_FOR = {'us-east-1': 'iad1', 'us-east-2': 'cle1', 'us-west-2': 'pdx1', 'eu-central-1': 'fra1',
+                     'eu-west-2': 'lhr1', 'ap-southeast-1': 'sin1', 'ap-southeast-2': 'syd1', 'sa-east-1': 'gru1'}
+
+
+def health(db, database_ms):
+    """Where the server and the database run, and how long a database round trip took. No secrets."""
+    host = urlparse(db.url).hostname or '' if db.pg else ''
+    db_region = next((part for part in host.split('.') if part in VERCEL_REGION_FOR), 'local' if not db.pg else 'unknown')
+    server_region = os.environ.get('VERCEL_REGION', 'local')
+    best = VERCEL_REGION_FOR.get(db_region)
+    return {
+        'server_region': server_region, 'database_region': db_region, 'database_ms': database_ms,
+        'reused_connection': db.reused,
+        'advice': f'Run the server in {best} (vercel.json "regions") to sit next to the database.'
+                  if best and best != server_region else 'Server and database are in the same place.',
+    }
+
+
 def summary(db, month=None, currency=None):
     every = transactions(db)
     currencies = sorted({t['currency'] for t in every})
@@ -170,6 +214,8 @@ def summary(db, month=None, currency=None):
         'top_merchants': dict(list(major(by_merchant).items())[:10]),
         # Choices for the category editor: the built-in ones plus any you invented.
         'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized'}),
+        # The month's transactions too, so the dashboard needs one request instead of two.
+        'transactions': [t for t in rows if t['received_at'].startswith(month)],
     }
 
 
@@ -332,11 +378,15 @@ def app(environ, start_response):
             correction = read_category(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
-    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions')}:
+    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health')}:
         return respond('404 Not Found', {'error': 'not found'})
 
+    started = time.perf_counter()
     db = DB()
     try:
+        if path == '/api/health':
+            db.run('SELECT 1')
+            return respond('200 OK', health(db, round((time.perf_counter() - started) * 1000)))
         if path == '/api/category':
             try:
                 set_category(db, *correction)
