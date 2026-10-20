@@ -104,6 +104,29 @@ class StoreMixin:
         self.assertEqual(server.transactions(db, '2026-09')[0]['category'], 'Income')
 
 
+    def test_corrections_follow_the_merchant(self):
+        db = self.db
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD BAKERY\nRef 1', '2026-10-01T09:00:00+03:00')
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 12.00\nAt: ABU SAAD BAKERY\nRef 2', '2026-10-02T09:00:00+03:00')
+        server.store_sms(db, 'B', 'SAR 99.00 paid to NOON.COM', '2026-10-03T09:00:00+03:00')
+        cats = lambda: {t['body'][-5:]: t['category'] for t in server.transactions(db)}
+        first = next(t for t in server.transactions(db) if t['body'].endswith('Ref 1'))
+        self.assertEqual(first['category'], 'Uncategorized')
+
+        server.set_category(db, first['id'], 'Food', True)  # "always use this for ABU SAAD BAKERY"
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 8.00\nAt: ABU SAAD BAKERY\nRef 3', '2026-10-04T09:00:00+03:00')
+        self.assertEqual([c for k, c in cats().items() if k.startswith('Ref')], ['Food', 'Food', 'Food'])  # past and future
+
+        noon = next(t for t in server.transactions(db) if 'NOON' in t['body'])
+        server.set_category(db, noon['id'], 'Gifts', False)  # just this one, and a new category
+        self.assertEqual(cats()['N.COM'], 'Gifts')
+        self.assertIn('Gifts', server.summary(db)['categories'])
+        server.set_category(db, first['id'], 'Groceries', True)  # changing your mind updates the rule
+        self.assertEqual(cats()['Ref 2'], 'Groceries')
+        with self.assertRaises(KeyError):
+            server.set_category(db, 999999, 'Food', True)
+
+
 class SqliteStoreTest(StoreMixin, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -122,7 +145,7 @@ class PostgresStoreTest(StoreMixin, unittest.TestCase):
     def setUp(self):
         server.DB._schema_ready.discard(self.url)
         cleanup = server.DB(self.url)
-        cleanup.run('DROP TABLE transactions')
+        cleanup.run('DROP TABLE IF EXISTS transactions, merchant_categories, txn_categories')
         cleanup.close()
         server.DB._schema_ready.discard(self.url)
         super().setUp()
@@ -204,6 +227,20 @@ class AppTest(unittest.TestCase):
         too_many = json.dumps({'messages': batch['messages'][:1] * (server.MAX_IMPORT_BATCH + 1)}).encode()
         self.assertEqual(self.call('POST', '/api/import', too_many)[0], 400)
         self.assertEqual(self.call('POST', '/api/import', body, auth='')[0], 401)
+
+    def test_category_endpoint(self):
+        sms = json.dumps({'sender': 'B', 'body': 'SAR 15.00 paid to ABU SAAD BAKERY'}).encode()
+        self.call('POST', '/sms', sms)
+        txn = json.loads(self.call('GET', '/api/transactions')[1])[0]
+        fix = lambda **kw: self.call('POST', '/api/category', json.dumps({'id': txn['id'], **kw}).encode())[0]
+        self.assertEqual(fix(category='Food', whole_merchant=True), 200)
+        self.assertEqual(json.loads(self.call('GET', '/api/transactions')[1])[0]['category'], 'Food')
+        self.assertEqual(fix(category='Uncategorized'), 400)
+        self.assertEqual(fix(category='x' * 41), 400)
+        self.assertEqual(self.call('POST', '/api/category', b'{"id": 424242, "category": "Food"}')[0], 404)
+        form = urlencode({'id': txn['id'], 'category': 'Food'}).encode()  # cross-site form posts are refused
+        self.assertEqual(self.call('POST', '/api/category', form, content_type='application/x-www-form-urlencoded')[0], 400)
+        self.assertEqual(self.call('POST', '/api/category', b'{}', auth='')[0], 401)
 
     def test_lockout_after_too_many_wrong_guesses(self):
         for i in range(server.MAX_FAILURES - 1):

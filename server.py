@@ -40,6 +40,10 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS transactions (
     merchant TEXT NOT NULL
 )'''
 FAILURES_SCHEMA = 'CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, at INTEGER NOT NULL)'
+# Your corrections: a category for every transaction from a merchant, or for one transaction.
+LEARNED_SCHEMAS = ['CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL)',
+                   'CREATE TABLE IF NOT EXISTS txn_categories (txn_id BIGINT PRIMARY KEY, category TEXT NOT NULL)']
+MAX_CATEGORY = 40
 
 
 class DB:
@@ -63,7 +67,8 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
-            self.run(FAILURES_SCHEMA)
+            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS]:
+                self.run(extra)
             DB._schema_ready.add(url)
 
     def run(self, sql, **params):
@@ -103,16 +108,37 @@ def store_sms(db, sender, body, received_at):
 
 
 def transactions(db, month=None, currency=None):
-    # Categories are computed on read, so editing rules.json re-categorizes history on the next deploy/restart.
+    # Categories are computed on read, so a correction or a rules.json edit re-categorizes history too.
+    # Order: your correction for this transaction > your rule for its merchant > rules.json keywords.
     rules = json.loads(RULES.read_text(encoding='utf-8'))
+    learned = defaultdict(list)
+    for r in db.run('SELECT merchant, category FROM merchant_categories'):
+        learned[r['category']].append(r['merchant'])
+    overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
     rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC')
     return [{
         'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
         'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
         'merchant': r['merchant'],
-        'category': categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
+        'category': overrides.get(r['id']) or (r['merchant'] and categorize(r['merchant'], '', learned, None))
+                    or categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
     } for r in rows
         if (not month or r['received_at'].startswith(month)) and (not currency or r['currency'] == currency)]
+
+
+def set_category(db, txn_id, category, whole_merchant):
+    """Save a correction. With whole_merchant, every past and future transaction from that merchant follows it."""
+    found = db.run('SELECT merchant FROM transactions WHERE id = :id', id=txn_id)
+    if not found:
+        raise KeyError('no such transaction')
+    merchant = found[0]['merchant'].strip().lower()
+    if whole_merchant and merchant:
+        db.run('INSERT INTO merchant_categories (merchant, category) VALUES (:m, :c) '
+               'ON CONFLICT (merchant) DO UPDATE SET category = excluded.category', m=merchant, c=category)
+        db.run('DELETE FROM txn_categories WHERE txn_id = :id', id=txn_id)  # so this one follows the merchant rule too
+    else:
+        db.run('INSERT INTO txn_categories (txn_id, category) VALUES (:id, :c) '
+               'ON CONFLICT (txn_id) DO UPDATE SET category = excluded.category', id=txn_id, c=category)
 
 
 def summary(db, month=None, currency=None):
@@ -142,6 +168,8 @@ def summary(db, month=None, currency=None):
         'months': [{'month': m, 'spent': v['spent'] / 100, 'received': v['received'] / 100} for m, v in sorted(months.items())],
         'by_category': major(by_category),
         'top_merchants': dict(list(major(by_merchant).items())[:10]),
+        # Choices for the category editor: the built-in ones plus any you invented.
+        'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized'}),
     }
 
 
@@ -229,13 +257,26 @@ def clean_message(msg):
     return sender, body, received_at
 
 
-def read_import(environ):
-    """A batch from the import page: JSON {"messages": [{sender, body, received_at}, ...]}.
-    JSON only, so a cross-site form can't submit it with the browser's cookie."""
+def read_json(environ, limit):
+    """JSON request body from the dashboard. JSON only, so a cross-site form can't submit it with the browser's cookie."""
     length = int(environ.get('CONTENT_LENGTH') or 0)
-    if not 0 < length <= MAX_IMPORT_BODY or not environ.get('CONTENT_TYPE', '').startswith('application/json'):
-        raise ValueError('expected a JSON body up to 2 MB')
-    messages = json.loads(environ['wsgi.input'].read(length))['messages']
+    if not 0 < length <= limit or not environ.get('CONTENT_TYPE', '').startswith('application/json'):
+        raise ValueError(f'expected a JSON body up to {limit} bytes')
+    return json.loads(environ['wsgi.input'].read(length))
+
+
+def read_category(environ):
+    """{"id": 12, "category": "Food", "whole_merchant": true} from the category editor."""
+    msg = read_json(environ, MAX_BODY)
+    category = ' '.join(str(msg['category']).split())
+    if not 0 < len(category) <= MAX_CATEGORY or category == 'Uncategorized':
+        raise ValueError(f'category must be 1-{MAX_CATEGORY} characters')
+    return int(msg['id']), category, bool(msg.get('whole_merchant', True))
+
+
+def read_import(environ):
+    """A batch from the import page: JSON {"messages": [{sender, body, received_at}, ...]}."""
+    messages = read_json(environ, MAX_IMPORT_BODY)['messages']
     if not isinstance(messages, list) or len(messages) > MAX_IMPORT_BATCH:
         raise ValueError(f'messages must be a list of at most {MAX_IMPORT_BATCH}')
     return [clean_message(m) for m in messages]
@@ -286,11 +327,22 @@ def app(environ, start_response):
             batch = read_import(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif (method, path) == ('POST', '/api/category'):
+        try:
+            correction = read_category(environ)
+        except (ValueError, KeyError, TypeError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions')}:
         return respond('404 Not Found', {'error': 'not found'})
 
     db = DB()
     try:
+        if path == '/api/category':
+            try:
+                set_category(db, *correction)
+            except KeyError:
+                return respond('404 Not Found', {'error': 'no such transaction'})
+            return respond('200 OK', {'saved': True})
         if path == '/api/import':
             stored = store_many(db, batch)
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})

@@ -12,7 +12,7 @@
     --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f1f3; --line: #e6e7ea;
     --text: #0b0b0c; --text-2: #52514e; --muted: #77767a;
     --accent: #2a78d6; --accent-soft: #dbe8f8; --bar: #2a78d6; --bar-dim: #b7d3f6;
-    --good: #0f7b3e; --bad: #b42318;
+    --good: #0f7b3e; --bad: #b42318; --warn: #a15c00; --warn-soft: #fdf1dc;
     --hero-from: #1c5cab; --hero-to: #2a78d6; --hero-text: #ffffff; --hero-muted: #cde2fb;
   }
   @media (prefers-color-scheme: dark) {
@@ -21,7 +21,7 @@
       --bg: #0f1012; --surface: #1a1a1c; --surface-2: #242427; --line: #2c2c30;
       --text: #f0efec; --text-2: #c3c2b7; --muted: #93929a;
       --accent: #5598e7; --accent-soft: #1d3150; --bar: #3987e5; --bar-dim: #24456f;
-      --good: #4ade80; --bad: #f87171;
+      --good: #4ade80; --bad: #f87171; --warn: #f5b84a; --warn-soft: #3a2a0c;
       --hero-from: #104281; --hero-to: #1c5cab; --hero-text: #ffffff; --hero-muted: #b7d3f6;
     }
   }
@@ -55,7 +55,7 @@
 
   /* Cards */
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
-  .card h2 { font-size: 15px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .card h2 span { font-size: 13px; font-weight: 500; color: var(--muted); }
   .grid { display: grid; gap: 16px; }
   @media (min-width: 680px) { .grid { grid-template-columns: 1fr 1fr; } }
@@ -99,6 +99,16 @@
   .txn .amount.credit { color: var(--good); }
   .txn pre { margin: 0 0 12px 50px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
 
+  .txn small .fixme { color: var(--warn); font-weight: 600; }
+  .review { display: flex; align-items: center; gap: 12px; background: var(--warn-soft); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .review span { flex: 1; }
+  .review button, .fix button { font-weight: 600; border: 0; border-radius: 8px; padding: 8px 14px; background: var(--accent); color: #fff; cursor: pointer; }
+  .fix { margin: 0 0 14px 50px; display: grid; gap: 10px; }
+  .fix label { font-size: 13px; color: var(--text-2); }
+  .fix select, .fix input[type=text] { width: 100%; margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
+  .fix .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+  .fix .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
   .empty { text-align: center; color: var(--muted); padding: 24px 8px; font-size: 14px; }
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
   .skeleton { opacity: .5; }
@@ -148,9 +158,11 @@
   </div>
 
   <section class="card">
-    <h2>Transactions <span>tap one to see the SMS</span></h2>
+    <h2>Transactions <span>tap to see SMS or fix</span></h2>
+    <div id="review"></div>
     <div id="txns"></div>
   </section>
+  <div class="toast" id="toast" role="status" hidden></div>
 </main>
 <script>
 const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Transport': '🚗', 'Travel': '✈️', 'Bills & Utilities': '💡',
@@ -232,12 +244,56 @@ async function load() {
   $('txns').innerHTML = txns.map(t => {
     const day = t.received_at.slice(0, 10), header = day !== lastDay ? `<div class="day">${dayLabel(day)}</div>` : '';
     lastDay = day;
-    return header + `<details class="txn"><summary><span class="emoji" aria-hidden="true">${icon(t.category)}</span>` +
-      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${esc(t.category)} · ${t.received_at.slice(11, 16)}</small></span>` +
+    const unsure = t.category === 'Uncategorized';
+    const options = [...s.categories].map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    return header + `<details class="txn" data-id="${t.id}" data-merchant="${esc(t.merchant)}" ${unsure ? 'data-unsure' : ''}>` +
+      `<summary><span class="emoji" aria-hidden="true">${icon(t.category)}</span>` +
+      `<span class="who"><b>${esc(t.merchant || 'Unknown merchant')}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : esc(t.category)} · ${t.received_at.slice(11, 16)}</small></span>` +
       `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${money(t.amount)}</span></summary>` +
-      `<pre>${esc(t.body)}</pre></details>`;
+      `<pre>${esc(t.body)}</pre>` +
+      `<form class="fix"><label>Category<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
+      `<option value="__new">+ New category…</option></select></label>` +
+      `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
+      (t.merchant ? `<label class="check"><input type="checkbox" name="all" checked>Always use this for ${esc(t.merchant)}</label>` : '') +
+      `<div><button>Save</button></div></form></details>`;
   }).join('') || `<div class="empty"><b>No transactions in ${monthName(s.month)}</b>New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import" style="color:var(--accent);font-weight:600">Import your old SMS</a></div>`;
+  const unsure = txns.filter(t => t.category === 'Uncategorized').length;
+  $('review').innerHTML = unsure ? `<div class="review"><span>${unsure} transaction${unsure > 1 ? 's' : ''} this month need${unsure > 1 ? '' : 's'} a category.</span><button type="button" id="review-next">Review</button></div>` : '';
 }
+
+function reviewNext() {
+  const next = document.querySelector('details.txn[data-unsure]');
+  if (!next) return;
+  next.open = true;
+  next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  next.querySelector('select').focus({ preventScroll: true });
+}
+
+function toast(text) {
+  $('toast').textContent = text; $('toast').hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('toast').hidden = true; }, 3500);
+}
+
+$('review').addEventListener('click', e => { if (e.target.id === 'review-next') reviewNext(); });
+$('txns').addEventListener('change', e => {
+  if (e.target.name === 'category') e.target.form.querySelector('[name=custom]').parentElement.hidden = e.target.value !== '__new';
+});
+$('txns').addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.target, row = form.closest('details');
+  const chosen = form.category.value === '__new' ? form.custom.value.trim() : form.category.value;
+  if (!chosen) { (form.category.value === '__new' ? form.custom : form.category).focus(); return; }
+  const all = form.all ? form.all.checked : false;
+  form.querySelector('button').disabled = true;
+  const r = await fetch('/api/category', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: Number(row.dataset.id), category: chosen, whole_merchant: all }) });
+  if (r.status === 401) { location.href = '/login'; return; }
+  if (!r.ok) { toast('Could not save. Try again.'); form.querySelector('button').disabled = false; return; }
+  toast(all ? `Saved. ${row.dataset.merchant} is now ${chosen}, including future SMS.` : `Saved as ${chosen}.`);
+  const wasReviewing = row.hasAttribute('data-unsure');
+  await load();
+  if (wasReviewing) reviewNext();  // keep going through the ones that still need a category
+});
 
 $('currency').addEventListener('click', e => {
   const c = e.target.closest('button')?.dataset.c;
