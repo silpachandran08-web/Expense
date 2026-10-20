@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1012" media="(prefers-color-scheme: dark)">
 <title>Expenses</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   :root {
     color-scheme: light;
@@ -696,10 +699,29 @@ const ago = iso => {
   const min = Math.round((Date.now() - new Date(iso)) / 60000);
   return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
 };
+// Android: Chrome offers installing the site as an app; keep its prompt so Settings can show an Install button.
+let installPrompt = null;
+const installed = () => matchMedia('(display-mode: standalone)').matches;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; if (location.hash.startsWith('#/settings')) render(); });
+addEventListener('appinstalled', () => { installPrompt = null; toast('Installed. Open Expenses from your home screen.'); });
+document.addEventListener('click', async e => {
+  if (e.target.id !== 'install' || !installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  render();
+});
+function installCard() {
+  const body = installed() ? '<p class="muted">✓ Installed. You are using the app.</p>'
+    : installPrompt ? '<p class="muted">Adds Expenses to your home screen. It opens full screen, like any other app.</p><button class="btn" type="button" id="install">Install app</button>'
+    : '<p class="muted">In Chrome, tap <b>⋮</b> (top right), then <b>Install app</b> or <b>Add to Home screen</b>.</p>';
+  return card('Install on your phone', '', body);
+}
 function settings() {
   // Receipts for what the phone sent, so you can check a message arrived (and what happened to it).
   const deliveries = state.sum.deliveries || [], last = deliveries[0];
   return { title: 'Settings', html:
+    installCard() +
     `<section class="card"><a class="ln" href="/import"><span class="nm"><b>Import old SMS</b><small>Add messages from before the phone was connected</small></span>${go1}</a></section>` +
     card('Phone connection', 'last 7 days', `<p class="phone-last">${last ? `Last SMS from your phone: <b>${ago(last.at)}</b> · ${esc(last.outcome)}`
       : '<span class="bad">No SMS from your phone in the last 7 days.</span> Check the forwarder app: the address, the password after "Bearer", and that Samsung isn\'t putting it to sleep.'}</p>` +

@@ -28,6 +28,9 @@ VERSION = os.environ.get('VERCEL_GIT_COMMIT_SHA', 'local')[:7]  # which commit i
 MAX_IMPORT_BODY, MAX_IMPORT_BATCH = 2 * 1024 * 1024, 500  # one upload batch from the import page
 SESSION_DAYS = 30
 PAGES = {'/': 'dashboard.html', '/import': 'import.html'}
+# What Android needs to install the site as an app. No personal data, and Chrome fetches the manifest without
+# your login cookie, so these are served to anyone.
+PUBLIC = {'/manifest.webmanifest': 'application/manifest+json', '/icon-192.png': 'image/png', '/icon-512.png': 'image/png'}
 MIN_PASSWORD = 6
 MAX_FAILURES, LOCKOUT_SECONDS = 10, 15 * 60  # wrong guesses per IP before it is locked out, and for how long
 
@@ -454,6 +457,8 @@ def app(environ, start_response):
     method, path = environ['REQUEST_METHOD'], environ.get('PATH_INFO') or '/'
     query = {k: v[0] for k, v in parse_qs(environ.get('QUERY_STRING', '')).items()}
 
+    if method == 'GET' and path in PUBLIC:
+        return respond('200 OK', (HERE / path.lstrip('/')).read_bytes(), PUBLIC[path])
     if path == '/login':
         if method == 'POST':
             if not _token():  # says only that setup is incomplete, nothing about the password itself

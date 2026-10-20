@@ -355,6 +355,15 @@ class AppTest(unittest.TestCase):
         self.assertEqual(find('   ')['count'], 0)
         self.assertEqual(self.call('GET', '/api/search', query='q=panda', auth='')[0], 401)
 
+    def test_install_files_are_public_and_nothing_else_is(self):
+        for path, kind in (('/manifest.webmanifest', 'application/manifest+json'), ('/icon-192.png', 'image/png'), ('/icon-512.png', 'image/png')):
+            status, body = self.call('GET', path, auth='')
+            self.assertEqual((status, self.headers['Content-Type']), (200, kind))
+        manifest = json.loads(self.call('GET', '/manifest.webmanifest', auth='')[1])
+        self.assertEqual((manifest['display'], manifest['start_url']), ('standalone', '/'))
+        self.assertEqual(self.call('GET', '/server.py', auth='')[0], 401)  # only the listed files are public
+        self.assertEqual(self.call('GET', '/api/summary', auth='')[0], 401)
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')
