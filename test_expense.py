@@ -9,9 +9,9 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import server
-from parse import categorize, parse
+from parse import categorize, compile_rules, parse
 
-RULES = json.loads((Path(__file__).parent / 'rules.json').read_text(encoding='utf-8'))
+RULES = compile_rules(json.loads((Path(__file__).parent / 'rules.json').read_text(encoding='utf-8')))
 TOKEN = 'test-token-1234567890'
 
 SAMPLES = [
@@ -315,6 +315,7 @@ class AppTest(unittest.TestCase):
         fix = lambda **kw: self.call('POST', '/api/category', json.dumps({'id': txn['id'], **kw}).encode())[0]
         status = self.call('POST', '/api/category', json.dumps({'id': txn['id'], 'category': 'Food', 'whole_merchant': True}).encode())
         self.assertEqual((status[0], json.loads(status[1])['category']), (200, 'Food'))  # reports what it shows as now
+        self.assertEqual(json.loads(status[1])['summary']['by_category'], {'Food': 15.0})  # and the updated dashboard
         self.assertEqual(json.loads(self.call('GET', '/api/transactions')[1])[0]['category'], 'Food')
         self.assertEqual(fix(category='Uncategorized'), 400)
         self.assertEqual(fix(category='x' * 41), 400)
@@ -322,6 +323,21 @@ class AppTest(unittest.TestCase):
         form = urlencode({'id': txn['id'], 'category': 'Food'}).encode()  # cross-site form posts are refused
         self.assertEqual(self.call('POST', '/api/category', form, content_type='application/x-www-form-urlencoded')[0], 400)
         self.assertEqual(self.call('POST', '/api/category', b'{}', auth='')[0], 401)
+
+    def test_phone_delivery_receipts(self):
+        send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
+        send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')
+        got = json.loads(self.call('GET', '/api/summary')[1])['deliveries']
+        self.assertEqual([d['outcome'] for d in got][::-1],
+                         ['saved', 'already had it', 'not a transaction', 'refused: wrong password in the phone app'])
+        self.assertNotIn('body', got[0])  # receipts never keep the message text
+
+    def test_cards_and_accounts(self):
+        for body in (SAMPLES[6][0], SAMPLES[7][0], 'PoS Purchase\nAmount: SAR 10.00\nCard: *1234\nAt: PANDA'):
+            self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body, 'received_at': '2026-10-05T10:00:00+03:00'}).encode())
+        s = json.loads(self.call('GET', '/api/summary')[1])
+        self.assertEqual(s['by_account'], {'AlRajhiBank · Card •5678': 1299.0, 'AlRajhiBank · Card •1234': 55.5})
+        self.assertEqual(server.account_label('JD-HDFCBK-S', 'Rs 5 debited from A/c XX5678'), 'HDFCBK · Account •5678')
 
     def test_lockout_after_too_many_wrong_guesses(self):
         for i in range(server.MAX_FAILURES - 1):

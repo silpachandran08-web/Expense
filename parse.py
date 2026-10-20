@@ -56,6 +56,21 @@ def parse(body):
     }
 
 
+ACCOUNT = re.compile(
+    r'(?:\b(card|mada|visa|master\s?card|credit card|debit card|a/?c|acct|account)\b|(بطاقة|حساب))'
+    r'[^\d\n]{0,15}?[x*•.]*(\d{4})(?!\d)', re.I)
+
+
+def account_of(body):
+    """'Card •1234' or 'Account •5678': the card or account an SMS is about, from its last 4 digits, or ''."""
+    m = ACCOUNT.search(body.translate(ARABIC_DIGITS))
+    if not m:
+        return ''
+    word = (m.group(1) or '').lower()
+    kind = 'Card' if m.group(2) == 'بطاقة' or word in {'card', 'mada', 'visa', 'mastercard', 'master card', 'credit card', 'debit card'} else 'Account'
+    return f'{kind} •{m.group(3)}'
+
+
 def merchant_of(body):
     """The merchant name in an SMS, worked out fresh each time so parser fixes reach old messages too."""
     return _merchant(body.translate(ARABIC_DIGITS))
@@ -70,11 +85,18 @@ def _merchant(body):
     return ''
 
 
-def categorize(merchant, body, rules, default='Uncategorized'):
+def compile_rules(rules):
+    """rules.json ({category: [keywords]}) as one prepared pattern per category: checking 200 keywords
+    one by one for every transaction on every page load was most of the dashboard's load time."""
+    # Whole-word match, so "ola" doesn't hit "motorola" and "rent" doesn't hit "current".
+    return [(category, re.compile(r'\b(?:' + '|'.join(re.escape(k.lower()) for k in keywords) + r')\b'))
+            for category, keywords in rules.items() if keywords]
+
+
+def categorize(merchant, body, compiled, default='Uncategorized'):
     """First category whose keyword appears in the merchant (preferred) or the SMS text."""
     for text in (merchant.lower(), body.lower()):
-        for category, keywords in rules.items():
-            # Whole-word match, so "ola" doesn't hit "motorola" and "rent" doesn't hit "current".
-            if any(re.search(r'\b' + re.escape(k.lower()) + r'\b', text) for k in keywords):
+        for category, pattern in compiled:
+            if pattern.search(text):
                 return category
     return default

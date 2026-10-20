@@ -13,13 +13,13 @@ import sqlite3
 import ssl
 from collections import defaultdict
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
-from parse import categorize, merchant_of, parse
+from parse import account_of, categorize, compile_rules, merchant_of, parse
 
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
@@ -46,6 +46,9 @@ FAILURES_SCHEMA = 'CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, 
 LEARNED_SCHEMAS = ['CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL)',
                    'CREATE TABLE IF NOT EXISTS txn_categories (txn_id BIGINT PRIMARY KEY, category TEXT NOT NULL)']
 MAX_CATEGORY = 40
+# A receipt per SMS the phone sends (time, sender, what happened; never the text), so you can check delivery.
+DELIVERIES_SCHEMA = 'CREATE TABLE IF NOT EXISTS phone_deliveries (id {id} PRIMARY KEY, at TEXT NOT NULL, sender TEXT NOT NULL, outcome TEXT NOT NULL)'
+DELIVERY_DAYS = 7
 IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
 OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
 NOT_COUNTED = {IGNORED, OWN_TRANSFER}
@@ -80,8 +83,8 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
-            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS]:
-                self.run(extra)
+            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA]:
+                self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
             DB._schema_ready.add(url)
 
     @staticmethod
@@ -136,6 +139,15 @@ def store_many(db, messages):
             for row in rows.values() if row['body'] in inserted]
 
 
+def record_delivery(db, sender, outcome):
+    now = datetime.now(timezone.utc)
+    db.run('INSERT INTO phone_deliveries (at, sender, outcome) VALUES (:at, :s, :o)',
+           at=now.isoformat(timespec='seconds'), s=sender[:40], o=outcome)
+    # Keep a week, and at most the newest 100, so a stream of refused requests can't fill the table.
+    db.run('DELETE FROM phone_deliveries WHERE at < :old OR id <= (SELECT id FROM phone_deliveries ORDER BY id DESC LIMIT 1 OFFSET 100)',
+           old=(now - timedelta(days=DELIVERY_DAYS)).isoformat(timespec='seconds'))
+
+
 def store_sms(db, sender, body, received_at):
     """Parse and insert one SMS. Returns the stored transaction, or None if it was skipped or a duplicate."""
     stored = store_many(db, [(sender, body, received_at)])
@@ -145,7 +157,7 @@ def store_sms(db, sender, body, received_at):
 def transactions(db, month=None, currency=None):
     # Categories are computed on read, so a correction or a rules.json edit re-categorizes history too.
     # Order: your correction for this transaction > your rule for its merchant > rules.json keywords.
-    rules = json.loads(RULES.read_text(encoding='utf-8'))
+    rules = compile_rules(json.loads(RULES.read_text(encoding='utf-8')))
     saved = {r['merchant']: r['category'] for r in db.run('SELECT merchant, category FROM merchant_categories')}
     by_wording = {k: c for k, c in saved.items() if k.startswith(WORDING)}
     for_merchant = rule_finder({k: c for k, c in saved.items() if not k.startswith(WORDING)})
@@ -163,12 +175,20 @@ def transactions(db, month=None, currency=None):
             'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
             'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
             'merchant': merchant,
+            'account': account_label(r['sender'], r['body']),
             'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
                         or (merchant and for_merchant(merchant))
                         or (not merchant and by_wording.get(wording(r['body'])))
                         or categorize(merchant, r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
         })
     return result
+
+
+def account_label(sender, body):
+    """'AlRajhiBank · Card •1234': which bank and card/account a transaction used. Indian sender IDs carry an
+    operator prefix/suffix ('VM-HDFCBK', 'JD-HDFCBK-S') that changes per SMS, so it's dropped."""
+    bank = re.sub(r'^[A-Za-z]{2}-|-[A-Za-z]$', '', sender.strip())
+    return ' · '.join(part for part in (bank, account_of(body)) if part) or 'Unknown account'
 
 
 def rule_finder(rules):
@@ -250,8 +270,8 @@ def health(db, database_ms):
     }
 
 
-def summary(db, month=None, currency=None):
-    every = transactions(db)
+def summary(db, month=None, currency=None, every=None):
+    every = transactions(db) if every is None else every
     currencies = sorted({t['currency'] for t in every})
     # INR and SAR are never added together; SAR is the main account, so it is shown first.
     currency = currency or ('SAR' if 'SAR' in currencies or not every else every[0]['currency'])
@@ -264,12 +284,13 @@ def summary(db, month=None, currency=None):
             totals['spent' if t['direction'] == 'debit' else 'received'] += round(t['amount'] * 100)
     month = month or max(months, default=datetime.now(timezone.utc).strftime('%Y-%m'))
 
-    by_category, by_merchant = defaultdict(int), defaultdict(int)
+    by_category, by_merchant, by_account = defaultdict(int), defaultdict(int), defaultdict(int)
     for t in rows:
         if t['received_at'].startswith(month) and t['direction'] == 'debit' and t['category'] not in NOT_COUNTED:
             minor = round(t['amount'] * 100)
             by_category[t['category']] += minor
             by_merchant[t['merchant'] or '(unknown)'] += minor
+            by_account[t['account']] += minor
 
     major = lambda d: {k: v / 100 for k, v in sorted(d.items(), key=lambda kv: -kv[1])}
     return {
@@ -279,6 +300,7 @@ def summary(db, month=None, currency=None):
         'months': [{'month': m, 'spent': v['spent'] / 100, 'received': v['received'] / 100} for m, v in sorted(months.items())],
         'by_category': major(by_category),
         'top_merchants': dict(list(major(by_merchant).items())[:10]),
+        'by_account': major(by_account),
         # Choices for the category editor: the built-in ones plus any you invented.
         'categories': sorted({*json.loads(RULES.read_text(encoding='utf-8')), 'Income', *(t['category'] for t in every)} - {'Uncategorized', *NOT_COUNTED}),
         # The month's transactions too (ignored ones included, so they can be un-ignored), in one request.
@@ -286,6 +308,7 @@ def summary(db, month=None, currency=None):
         # Every month's uncategorized ones, newest first, for the "Needs a category" list.
         'to_review': [t for t in rows if t['category'] == 'Uncategorized'],
         'version': VERSION,
+        'deliveries': db.run('SELECT at, sender, outcome FROM phone_deliveries ORDER BY id DESC LIMIT 10'),
     }
 
 
@@ -429,10 +452,20 @@ def app(environ, start_response):
 
     if (method, path) == ('POST', '/sms'):
         if not bearer_ok(environ):  # phone only: the cookie isn't accepted here, so no cross-site form can add SMS
+            refused = DB()
+            try:
+                record_delivery(refused, '?', 'refused: wrong password in the phone app')
+            finally:
+                refused.close()
             return respond('401 Unauthorized', {'error': 'unauthorized'})
         try:
             sms = read_sms(environ)
         except (ValueError, KeyError, TypeError) as e:
+            refused = DB()
+            try:
+                record_delivery(refused, '?', 'refused: the phone app sent an unreadable message')
+            finally:
+                refused.close()
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif not (session_ok(environ) or bearer_ok(environ)):
         return redirect('/login') if method == 'GET' and path in PAGES else respond('401 Unauthorized', {'error': 'unauthorized'})
@@ -462,14 +495,18 @@ def app(environ, start_response):
                 set_category(db, *correction)
             except KeyError:
                 return respond('404 Not Found', {'error': 'no such transaction'})
-            # What it now shows as, so the page can say so if another rule still wins.
-            now = next(t['category'] for t in transactions(db) if t['id'] == correction[0])
-            return respond('200 OK', {'saved': True, 'category': now})
+            # What it now shows as (so the page can say if another rule still wins), plus the updated
+            # dashboard, so saving is one request and one pass over the data instead of three.
+            every = transactions(db)
+            now = next(t['category'] for t in every if t['id'] == correction[0])
+            return respond('200 OK', {'saved': True, 'category': now,
+                                      'summary': summary(db, query.get('month'), query.get('currency'), every)})
         if path == '/api/import':
             stored = store_many(db, batch)
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
             stored = store_sms(db, *sms)
+            record_delivery(db, sms[0], 'saved' if stored else 'already had it' if parse(sms[1]) else 'not a transaction')
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})
         if path == '/api/summary':
             return respond('200 OK', summary(db, query.get('month'), query.get('currency')))
