@@ -25,7 +25,7 @@ Everything here runs on free plans: **Vercel Hobby** (hosting), **Neon Free** (P
 
    | Name | Value |
    |---|---|
-   | `EXPENSE_TOKEN` | A long random secret, 32+ characters, letters and digits only. Create it in your password manager (Samsung Pass, Google Password Manager or Bitwarden), or run `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`. |
+   | `EXPENSE_TOKEN` | Your login password, also used by the phone. At least 6 characters; longer is safer. After 10 wrong tries, that device is locked out for 15 minutes. |
    | `EXPENSE_TZ` | Optional. Defaults to `Asia/Riyadh`; set it to `Asia/Kolkata` only if you move. This decides where one month ends and the next begins. |
 
 5. Go to **Deployments → ⋯ → Redeploy** so the new variables take effect.

@@ -136,10 +136,10 @@ class AppTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def call(self, method, path, body=b'', auth=f'Bearer {TOKEN}', content_type='application/json', query='', cookie=''):
+    def call(self, method, path, body=b'', auth=f'Bearer {TOKEN}', content_type='application/json', query='', cookie='', ip='198.51.100.1'):
         result = {}
         environ = {'REQUEST_METHOD': method, 'PATH_INFO': path, 'QUERY_STRING': query, 'HTTP_AUTHORIZATION': auth,
-                   'HTTP_COOKIE': cookie, 'CONTENT_TYPE': content_type, 'CONTENT_LENGTH': str(len(body)),
+                   'HTTP_COOKIE': cookie, 'REMOTE_ADDR': ip, 'CONTENT_TYPE': content_type, 'CONTENT_LENGTH': str(len(body)),
                    'wsgi.input': io.BytesIO(body)}
         out = b''.join(server.app(environ, lambda status, headers: result.update(status=int(status[:3]), headers=dict(headers))))
         self.headers = result['headers']
@@ -181,9 +181,22 @@ class AppTest(unittest.TestCase):
     def test_login_tolerates_spaces_and_reports_missing_setup(self):
         os.environ['EXPENSE_TOKEN'] = f' {TOKEN}\n'  # pasted into Vercel with whitespace
         self.assertEqual(self.login(f'{TOKEN} ')[:2], (303, '/'))  # keyboard added a trailing space
-        os.environ['EXPENSE_TOKEN'] = 'short'
+        os.environ['EXPENSE_TOKEN'] = 'short'  # 5 characters: below the minimum of 6
         self.assertEqual(self.login('short')[:2], (303, '/login?error=setup'))
+        os.environ['EXPENSE_TOKEN'] = 'abc123'  # 6 characters is allowed
+        self.assertEqual(self.login('abc123')[:2], (303, '/'))
         os.environ['EXPENSE_TOKEN'] = TOKEN
+
+    def test_lockout_after_too_many_wrong_guesses(self):
+        for i in range(server.MAX_FAILURES - 1):
+            self.assertEqual(self.login(f'wrong-{i}')[1], '/login?error=1')
+        # Guessing the phone token counts too.
+        self.assertEqual(self.call('GET', '/api/summary', auth='Bearer wrong-guess')[0], 401)
+        self.assertEqual(self.login(TOKEN)[1], '/login?error=locked')  # even the right password, while locked
+        self.assertEqual(self.call('GET', '/api/summary')[0], 401)
+        other_ip = dict(auth='', content_type='application/x-www-form-urlencoded')
+        self.call('POST', '/login', urlencode({'password': TOKEN}).encode(), ip='203.0.113.9', **other_ip)
+        self.assertEqual(self.headers['Location'], '/')  # other devices are unaffected
 
     def test_flow(self):
         self.assertEqual(self.call('GET', '/api/summary', auth='Bearer wrong-token-0000000')[0], 401)

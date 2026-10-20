@@ -24,6 +24,8 @@ HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
 MAX_BODY = 16 * 1024
 SESSION_DAYS = 30
+MIN_PASSWORD = 6
+MAX_FAILURES, LOCKOUT_SECONDS = 10, 15 * 60  # wrong guesses per IP before it is locked out, and for how long
 
 SCHEMA = '''CREATE TABLE IF NOT EXISTS transactions (
     id {id} PRIMARY KEY,
@@ -35,6 +37,7 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS transactions (
     direction TEXT NOT NULL,
     merchant TEXT NOT NULL
 )'''
+FAILURES_SCHEMA = 'CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, at INTEGER NOT NULL)'
 
 
 class DB:
@@ -58,6 +61,7 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
+            self.run(FAILURES_SCHEMA)
             DB._schema_ready.add(url)
 
     def run(self, sql, **params):
@@ -128,7 +132,7 @@ def summary(db, month=None, currency=None):
 
 def _token():
     token = os.environ.get('EXPENSE_TOKEN', '').strip()  # a space pasted into Vercel's value box shouldn't lock you out
-    return token if len(token) >= 16 else None
+    return token if len(token) >= MIN_PASSWORD else None
 
 
 def _sign(expires):
@@ -141,10 +145,34 @@ def new_session():
     return f'{expires}.{_sign(expires)}'
 
 
+def client_ip(environ):
+    # Vercel overwrites X-Forwarded-For with the real client address, so it can't be spoofed there.
+    return (environ.get('HTTP_X_FORWARDED_FOR') or environ.get('REMOTE_ADDR') or '?').split(',')[0].strip()
+
+
+def check_password(environ, given):
+    """'ok', 'wrong' or 'locked'. A short password is guessable, so every wrong guess is recorded per IP
+    (in the database, because Vercel instances share no memory) and MAX_FAILURES of them lock that IP out."""
+    db = DB()
+    try:
+        ip, now = client_ip(environ), int(time.time())
+        recent = db.run('SELECT COUNT(*) AS n FROM login_failures WHERE ip = :ip AND at > :since',
+                        ip=ip, since=now - LOCKOUT_SECONDS)[0]['n']
+        if recent >= MAX_FAILURES:
+            return 'locked'
+        if hmac.compare_digest(given.strip().encode(), _token().encode()):  # strip: phone keyboards add trailing spaces
+            return 'ok'
+        db.run('DELETE FROM login_failures WHERE at <= :since', since=now - LOCKOUT_SECONDS)
+        db.run('INSERT INTO login_failures (ip, at) VALUES (:ip, :at)', ip=ip, at=now)
+        return 'wrong'
+    finally:
+        db.close()
+
+
 def bearer_ok(environ):
-    """The phone authenticates with 'Authorization: Bearer <EXPENSE_TOKEN>'."""
+    """The phone authenticates with 'Authorization: Bearer <EXPENSE_TOKEN>'; guesses here count toward the lockout too."""
     header = environ.get('HTTP_AUTHORIZATION', '')
-    return bool(_token()) and header.startswith('Bearer ') and hmac.compare_digest(header[7:].encode(), _token().encode())
+    return bool(_token()) and header.startswith('Bearer ') and check_password(environ, header[7:]) == 'ok'
 
 
 def session_ok(environ):
@@ -200,13 +228,12 @@ def app(environ, start_response):
 
     if path == '/login':
         if method == 'POST':
-            # shortcut: no rate limit on guesses; fine while EXPENSE_TOKEN is long and random, add one if it must be short.
             if not _token():  # says only that setup is incomplete, nothing about the password itself
                 return redirect('/login?error=setup')
-            password = read_form(environ).get('password', '').strip()  # phone keyboards often add a trailing space
-            if hmac.compare_digest(password.encode(), _token().encode()):
+            result = check_password(environ, read_form(environ).get('password', ''))
+            if result == 'ok':
                 return redirect('/', new_session())
-            return redirect('/login?error=1')
+            return redirect('/login?error=locked' if result == 'locked' else '/login?error=1')
         return respond('200 OK', (HERE / 'login.html').read_bytes(), 'text/html; charset=utf-8')
     if (method, path) == ('POST', '/logout'):
         return redirect('/login', '')
@@ -239,8 +266,8 @@ def app(environ, start_response):
 
 if __name__ == '__main__':
     from wsgiref.simple_server import make_server
-    if len(os.environ.get('EXPENSE_TOKEN', '')) < 16:
-        raise SystemExit('Set EXPENSE_TOKEN to a secret of at least 16 characters.')
+    if not _token():
+        raise SystemExit(f'Set EXPENSE_TOKEN to a password of at least {MIN_PASSWORD} characters.')
     host, port = os.environ.get('HOST', '127.0.0.1'), int(os.environ.get('PORT', '8000'))
     print(f'Listening on http://{host}:{port}')
     make_server(host, port, app).serve_forever()

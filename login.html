@@ -42,9 +42,11 @@
 </main>
 <script>
   const error = new URLSearchParams(location.search).get('error');
-  if (error) document.getElementById('error').textContent = error === 'setup'
-    ? 'Login is not set up yet: in Vercel, add EXPENSE_TOKEN (at least 16 characters) for Production, then redeploy.'
-    : 'Wrong password. Try again.';
+  const messages = {
+    setup: 'Login is not set up yet: in Vercel, add EXPENSE_TOKEN (at least 6 characters) for Production, then redeploy.',
+    locked: 'Too many wrong attempts. Try again in 15 minutes.',
+  };
+  if (error) document.getElementById('error').textContent = messages[error] || 'Wrong password. Try again.';
   const input = document.getElementById('password'), toggle = document.querySelector('.show');
   toggle.addEventListener('click', () => {
     const show = input.type === 'password';
