@@ -178,6 +178,13 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.call('GET', '/api/summary', cookie=cookie, **browser)[0], 401)
         os.environ['EXPENSE_TOKEN'] = TOKEN
 
+    def test_login_tolerates_spaces_and_reports_missing_setup(self):
+        os.environ['EXPENSE_TOKEN'] = f' {TOKEN}\n'  # pasted into Vercel with whitespace
+        self.assertEqual(self.login(f'{TOKEN} ')[:2], (303, '/'))  # keyboard added a trailing space
+        os.environ['EXPENSE_TOKEN'] = 'short'
+        self.assertEqual(self.login('short')[:2], (303, '/login?error=setup'))
+        os.environ['EXPENSE_TOKEN'] = TOKEN
+
     def test_flow(self):
         self.assertEqual(self.call('GET', '/api/summary', auth='Bearer wrong-token-0000000')[0], 401)
         self.assertEqual(self.call('GET', '/api/summary', auth='')[0], 401)

@@ -127,7 +127,7 @@ def summary(db, month=None, currency=None):
 
 
 def _token():
-    token = os.environ.get('EXPENSE_TOKEN', '')
+    token = os.environ.get('EXPENSE_TOKEN', '').strip()  # a space pasted into Vercel's value box shouldn't lock you out
     return token if len(token) >= 16 else None
 
 
@@ -201,8 +201,10 @@ def app(environ, start_response):
     if path == '/login':
         if method == 'POST':
             # shortcut: no rate limit on guesses; fine while EXPENSE_TOKEN is long and random, add one if it must be short.
-            password = read_form(environ).get('password', '')
-            if _token() and hmac.compare_digest(password.encode(), _token().encode()):
+            if not _token():  # says only that setup is incomplete, nothing about the password itself
+                return redirect('/login?error=setup')
+            password = read_form(environ).get('password', '').strip()  # phone keyboards often add a trailing space
+            if hmac.compare_digest(password.encode(), _token().encode()):
                 return redirect('/', new_session())
             return redirect('/login?error=1')
         return respond('200 OK', (HERE / 'login.html').read_bytes(), 'text/html; charset=utf-8')
