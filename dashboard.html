@@ -21,12 +21,13 @@
   td, th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
   td.num, th.num { text-align: right; white-space: nowrap; }
   .scroll { overflow-x: auto; }
-  select { font: inherit; padding: 4px 8px; }
+  select, .logout button { font: inherit; padding: 4px 8px; }
+  .logout { display: inline; }
 </style>
 </head>
 <body>
 <main>
-  <header><h1>Expenses</h1><div><select id="currency" aria-label="Currency"></select> <select id="month" aria-label="Month"></select></div></header>
+  <header><h1>Expenses</h1><div><select id="currency" aria-label="Currency"></select> <select id="month" aria-label="Month"></select> <form class="logout" method="post" action="/logout"><button>Sign out</button></form></div></header>
   <div class="grid">
     <div class="card"><div class="muted">Spent</div><div class="kpi debit" id="spent">–</div></div>
     <div class="card"><div class="muted">Received</div><div class="kpi credit" id="received">–</div></div>
@@ -40,13 +41,15 @@
 </main>
 <script>
 let money = n => n;
+// Session expired or signed out elsewhere: back to the login page.
+const api = url => fetch(url).then(r => r.status === 401 ? (location.href = '/login', new Promise(() => {})) : r.json());
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const charts = {};
 const draw = (id, config) => { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), config); };
 
 async function load(month = '', currency = '') {
-  const s = await fetch(`/api/summary?month=${month}&currency=${currency}`).then(r => r.json());
-  const txns = await fetch(`/api/transactions?month=${s.month}&currency=${s.currency}`).then(r => r.json());
+  const s = await api(`/api/summary?month=${month}&currency=${currency}`);
+  const txns = await api(`/api/transactions?month=${s.month}&currency=${s.currency}`);
   const fmt = new Intl.NumberFormat(s.currency === 'SAR' ? 'en-SA' : 'en-IN', { style: 'currency', currency: s.currency, maximumFractionDigits: 2 });
   money = n => fmt.format(n);
   document.getElementById('currency').innerHTML = (s.currencies.length ? s.currencies : [s.currency])

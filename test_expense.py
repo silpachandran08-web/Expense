@@ -136,12 +136,47 @@ class AppTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def call(self, method, path, body=b'', auth=f'Bearer {TOKEN}', content_type='application/json', query=''):
+    def call(self, method, path, body=b'', auth=f'Bearer {TOKEN}', content_type='application/json', query='', cookie=''):
         result = {}
         environ = {'REQUEST_METHOD': method, 'PATH_INFO': path, 'QUERY_STRING': query, 'HTTP_AUTHORIZATION': auth,
-                   'CONTENT_TYPE': content_type, 'CONTENT_LENGTH': str(len(body)), 'wsgi.input': io.BytesIO(body)}
-        out = b''.join(server.app(environ, lambda status, headers: result.update(status=int(status[:3]))))
+                   'HTTP_COOKIE': cookie, 'CONTENT_TYPE': content_type, 'CONTENT_LENGTH': str(len(body)),
+                   'wsgi.input': io.BytesIO(body)}
+        out = b''.join(server.app(environ, lambda status, headers: result.update(status=int(status[:3]), headers=dict(headers))))
+        self.headers = result['headers']
         return result['status'], out
+
+    def login(self, password):
+        status, _ = self.call('POST', '/login', urlencode({'username': 'expense', 'password': password}).encode(),
+                              auth='', content_type='application/x-www-form-urlencoded')
+        return status, self.headers.get('Location'), self.headers.get('Set-Cookie', '')
+
+    def test_login_flow(self):
+        browser = dict(auth='')
+        self.assertEqual((self.call('GET', '/', **browser)[0], self.headers['Location']), (303, '/login'))
+        self.assertEqual(self.call('GET', '/login', **browser)[0], 200)
+        self.assertEqual(self.login('wrong-password-123456'), (303, '/login?error=1', ''))
+
+        status, location, set_cookie = self.login(TOKEN)
+        self.assertEqual((status, location), (303, '/'))
+        self.assertIn('HttpOnly', set_cookie)
+        self.assertIn('Secure', set_cookie)
+        cookie = set_cookie.split(';')[0]
+        self.assertEqual(self.call('GET', '/', cookie=cookie, **browser)[0], 200)
+        self.assertEqual(self.call('GET', '/api/summary', cookie=cookie, **browser)[0], 200)
+        # The browser session can't add SMS; only the phone's bearer token can.
+        self.assertEqual(self.call('POST', '/sms', b'{"sender":"x","body":"SAR 5 paid"}', cookie=cookie, **browser)[0], 401)
+
+        expires, sig = cookie.removeprefix('session=').split('.')
+        tampered = f'session={int(expires) + 1}.{sig}'
+        self.assertEqual(self.call('GET', '/api/summary', cookie=tampered, **browser)[0], 401)
+        expired = f'session=1.{server._sign("1")}'
+        self.assertEqual(self.call('GET', '/api/summary', cookie=expired, **browser)[0], 401)
+
+        self.assertEqual(self.call('POST', '/logout', cookie=cookie, **browser)[0], 303)
+        self.assertIn('Max-Age=0', self.headers['Set-Cookie'])
+        os.environ['EXPENSE_TOKEN'] = 'a-different-token-0987654321'  # rotating the token ends old sessions
+        self.assertEqual(self.call('GET', '/api/summary', cookie=cookie, **browser)[0], 401)
+        os.environ['EXPENSE_TOKEN'] = TOKEN
 
     def test_flow(self):
         self.assertEqual(self.call('GET', '/api/summary', auth='Bearer wrong-token-0000000')[0], 401)
@@ -159,7 +194,7 @@ class AppTest(unittest.TestCase):
         sms = json.dumps({'sender': 'X', 'body': SAMPLES[1][0], 'received_at': '1792002600000'})  # epoch ms, as the phone app sends
         self.assertEqual(json.loads(self.call('POST', '/sms', sms.encode())[1])['transaction']['received_at'], '2026-10-15T00:00:00+05:30')
 
-        status, out = self.call('GET', '/api/summary', query='currency=SAR', auth='Basic ' + __import__('base64').b64encode(f'me:{TOKEN}'.encode()).decode())
+        status, out = self.call('GET', '/api/summary', query='currency=SAR', auth=f'Bearer {TOKEN}')
         self.assertEqual((status, json.loads(out)['by_category']), (200, {'Groceries': 87.25}))
         self.assertEqual(self.call('GET', '/')[0], 200)
         self.assertEqual(self.call('GET', '/nope')[0], 404)

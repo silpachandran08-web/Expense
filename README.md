@@ -29,7 +29,7 @@ Everything here runs on free plans: **Vercel Hobby** (hosting), **Neon Free** (P
    | `EXPENSE_TZ` | Optional. Defaults to `Asia/Riyadh`; set it to `Asia/Kolkata` only if you move. This decides where one month ends and the next begins. |
 
 5. Go to **Deployments → ⋯ → Redeploy** so the new variables take effect.
-6. Open `https://<your-project>.vercel.app`. When the browser asks for a login, use any username and your `EXPENSE_TOKEN` as the password.
+6. Open `https://<your-project>.vercel.app` and sign in on the login page with your `EXPENSE_TOKEN` as the password. You stay signed in for 30 days on that device, until you tap **Sign out**. Changing `EXPENSE_TOKEN` signs out every device.
 
 ## 2. Forward SMS from the Samsung Galaxy S23 Ultra
 
@@ -77,14 +77,16 @@ Save, then send yourself a test SMS such as `Rs 1 paid to TEST`. It should appea
 
 ## API
 
-All endpoints need `Authorization: Bearer <token>` (or browser Basic auth with the token as the password).
+`POST /sms` needs `Authorization: Bearer <token>` (the phone). The dashboard and `/api/*` accept either that header or the sign-in cookie from `/login`.
 
 | Method | Path | What |
 |---|---|---|
 | POST | `/sms` | Fields `sender`, `body`, and optionally `received_at` (ISO 8601, or epoch milliseconds). Send them as JSON or as a form. Returns `201` if stored, `200` if skipped or a duplicate. |
 | GET | `/api/summary?currency=SAR&month=YYYY-MM` | Spent and received per month, spending by category, and top 10 merchants. Defaults to the latest currency and month. |
 | GET | `/api/transactions?currency=INR&month=YYYY-MM` | Transactions with category. |
-| GET | `/` | Dashboard |
+| GET | `/` | Dashboard (redirects to `/login` when signed out) |
+| GET/POST | `/login` | Login page / sign in with field `password` |
+| POST | `/logout` | Sign out |
 
 ## Running locally
 

@@ -4,15 +4,16 @@ A plain WSGI app (`app`), so the same code runs on Vercel and locally:
     EXPENSE_TOKEN=some-long-secret python3 server.py                   # local, SQLite file
     DATABASE_URL=postgresql://... EXPENSE_TOKEN=... python3 server.py   # local, Postgres
 """
-import base64
-import binascii
+import hashlib
 import hmac
 import json
 import os
 import sqlite3
 import ssl
 from collections import defaultdict
+import time
 from datetime import datetime, timezone
+from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
@@ -22,6 +23,7 @@ from parse import categorize, parse
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
 MAX_BODY = 16 * 1024
+SESSION_DAYS = 30
 
 SCHEMA = '''CREATE TABLE IF NOT EXISTS transactions (
     id {id} PRIMARY KEY,
@@ -50,7 +52,8 @@ class DB:
                 password=unquote(u.password or ''), ssl_context=ssl.create_default_context() if tls else None)
             self.pg, schema = True, SCHEMA.format(id='BIGSERIAL')
         else:
-            self.conn = sqlite3.connect(url or os.environ.get('EXPENSE_DB', str(HERE / 'expense.db')), isolation_level=None)
+            url = url or os.environ.get('EXPENSE_DB', str(HERE / 'expense.db'))
+            self.conn = sqlite3.connect(url, isolation_level=None)
             self.conn.row_factory = sqlite3.Row
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
@@ -123,18 +126,39 @@ def summary(db, month=None, currency=None):
     }
 
 
-def authed(header):
+def _token():
     token = os.environ.get('EXPENSE_TOKEN', '')
-    if header.startswith('Bearer '):
-        given = header[7:]
-    elif header.startswith('Basic '):  # browsers: any username, token as password
-        try:
-            given = base64.b64decode(header[6:]).decode().partition(':')[2]
-        except (binascii.Error, UnicodeDecodeError):
-            return False
-    else:
-        return False
-    return len(token) >= 16 and hmac.compare_digest(given.encode(), token.encode())
+    return token if len(token) >= 16 else None
+
+
+def _sign(expires):
+    return hmac.new(_token().encode(), f'session:{expires}'.encode(), hashlib.sha256).hexdigest()
+
+
+def new_session():
+    """Cookie value '<expiry>.<signature>': stateless, so it works across Vercel instances; changing EXPENSE_TOKEN logs everyone out."""
+    expires = int(time.time()) + SESSION_DAYS * 86400
+    return f'{expires}.{_sign(expires)}'
+
+
+def bearer_ok(environ):
+    """The phone authenticates with 'Authorization: Bearer <EXPENSE_TOKEN>'."""
+    header = environ.get('HTTP_AUTHORIZATION', '')
+    return bool(_token()) and header.startswith('Bearer ') and hmac.compare_digest(header[7:].encode(), _token().encode())
+
+
+def session_ok(environ):
+    """The browser authenticates with the cookie set by the login page."""
+    cookie = SimpleCookie(environ.get('HTTP_COOKIE', '')).get('session')
+    expires, _, sig = (cookie.value if cookie else '').partition('.')
+    return bool(_token()) and expires.isdigit() and int(expires) > time.time() and hmac.compare_digest(sig, _sign(expires))
+
+
+def read_form(environ):
+    length = int(environ.get('CONTENT_LENGTH') or 0)
+    if not 0 < length <= MAX_BODY:
+        return {}
+    return {k: v[0] for k, v in parse_qs(environ['wsgi.input'].read(length).decode(errors='replace')).items()}
 
 
 def read_sms(environ):
@@ -158,28 +182,46 @@ def read_sms(environ):
 
 
 def app(environ, start_response):
-    def respond(status, payload, content_type='application/json'):
+    def respond(status, payload, content_type='application/json', headers=()):
         data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode()
-        headers = [('Content-Type', content_type), ('Content-Length', str(len(data))), ('Cache-Control', 'no-store')]
-        if status.startswith('401'):
-            headers.append(('WWW-Authenticate', 'Basic realm="expense"'))
-        start_response(status, headers)
+        start_response(status, [('Content-Type', content_type), ('Content-Length', str(len(data))),
+                                ('Cache-Control', 'no-store'), *headers])
         return [data]
 
-    if not authed(environ.get('HTTP_AUTHORIZATION', '')):
-        return respond('401 Unauthorized', {'error': 'unauthorized'})
+    def redirect(location, cookie=None):
+        headers = [('Location', location)]
+        if cookie is not None:
+            max_age = SESSION_DAYS * 86400 if cookie else 0
+            headers.append(('Set-Cookie', f'session={cookie}; Max-Age={max_age}; Path=/; HttpOnly; Secure; SameSite=Lax'))
+        return respond('303 See Other', b'', 'text/plain', headers)
+
     method, path = environ['REQUEST_METHOD'], environ.get('PATH_INFO') or '/'
     query = {k: v[0] for k, v in parse_qs(environ.get('QUERY_STRING', '')).items()}
 
-    if method == 'GET' and path == '/':
-        return respond('200 OK', (HERE / 'dashboard.html').read_bytes(), 'text/html; charset=utf-8')
-    if (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('POST', '/sms')}:
-        return respond('404 Not Found', {'error': 'not found'})
-    if method == 'POST':
+    if path == '/login':
+        if method == 'POST':
+            # shortcut: no rate limit on guesses; fine while EXPENSE_TOKEN is long and random, add one if it must be short.
+            password = read_form(environ).get('password', '')
+            if _token() and hmac.compare_digest(password.encode(), _token().encode()):
+                return redirect('/', new_session())
+            return redirect('/login?error=1')
+        return respond('200 OK', (HERE / 'login.html').read_bytes(), 'text/html; charset=utf-8')
+    if (method, path) == ('POST', '/logout'):
+        return redirect('/login', '')
+
+    if (method, path) == ('POST', '/sms'):
+        if not bearer_ok(environ):  # phone only: the cookie isn't accepted here, so no cross-site form can add SMS
+            return respond('401 Unauthorized', {'error': 'unauthorized'})
         try:
             sms = read_sms(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif not (session_ok(environ) or bearer_ok(environ)):
+        return redirect('/login') if method == 'GET' and path == '/' else respond('401 Unauthorized', {'error': 'unauthorized'})
+    elif method == 'GET' and path == '/':
+        return respond('200 OK', (HERE / 'dashboard.html').read_bytes(), 'text/html; charset=utf-8')
+    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions')}:
+        return respond('404 Not Found', {'error': 'not found'})
 
     db = DB()
     try:
