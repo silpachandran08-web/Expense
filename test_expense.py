@@ -122,6 +122,19 @@ class StoreMixin:
         server.set_category(db, transfer['id'], 'Transfers', True)  # un-ignore
         self.assertEqual(server.summary(db)['months'][0]['spent'], 2550.0)
 
+    def test_rule_for_messages_without_a_merchant_matches_similar_wording(self):
+        db = self.db
+        salary = 'Dear Customer, your A/c XX3456 is credited with Rs.{} on {} by NEFT SAL ACME. Avl Bal Rs.{} -SBI'
+        server.store_sms(db, 'SBI', salary.format('75,000.00', '01-09-26', '98,000.00'), '2026-09-01T09:00:00+05:30')
+        server.store_sms(db, 'SBI', 'Rs.2000 withdrawn at  from A/c XX3456 on 10Oct26', '2026-10-10T09:00:00+05:30')
+        first = server.transactions(db, '2026-09')[0]
+        self.assertEqual((first['merchant'], first['category']), ('', 'Income'))
+        server.set_category(db, first['id'], 'Salary', True)  # "apply to similar messages"
+        server.store_sms(db, 'SBI', salary.format('80,500.50', '01-10-26', '1,02,000.00'), '2026-10-01T09:00:00+05:30')
+        cats = {t['body'][:20]: t['category'] for t in server.transactions(db)}
+        self.assertEqual(cats['Dear Customer, your '], 'Salary')  # next month's salary follows the rule
+        self.assertNotEqual(cats['Rs.2000 withdrawn at'], 'Salary')  # different wording does not
+
     def test_corrections_follow_the_merchant(self):
         db = self.db
         server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD BAKERY\nRef 1', '2026-10-01T09:00:00+03:00')

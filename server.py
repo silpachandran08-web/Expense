@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sqlite3
 import ssl
 from collections import defaultdict
@@ -137,9 +138,12 @@ def transactions(db, month=None, currency=None):
     # Categories are computed on read, so a correction or a rules.json edit re-categorizes history too.
     # Order: your correction for this transaction > your rule for its merchant > rules.json keywords.
     rules = json.loads(RULES.read_text(encoding='utf-8'))
-    learned = defaultdict(list)
+    learned, by_wording = defaultdict(list), {}
     for r in db.run('SELECT merchant, category FROM merchant_categories'):
-        learned[r['category']].append(r['merchant'])
+        if r['merchant'].startswith(WORDING):
+            by_wording[r['merchant']] = r['category']
+        else:
+            learned[r['category']].append(r['merchant'])
     overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
     rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC')
     return [{
@@ -147,18 +151,29 @@ def transactions(db, month=None, currency=None):
         'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
         'merchant': r['merchant'],
         'category': overrides.get(r['id']) or (r['merchant'] and categorize(r['merchant'], '', learned, None))
+                    or (not r['merchant'] and by_wording.get(wording(r['body'])))
                     or categorize(r['merchant'], r['body'], rules, 'Income' if r['direction'] == 'credit' else 'Uncategorized'),
     } for r in rows
         if (not month or r['received_at'].startswith(month)) and (not currency or r['currency'] == currency)]
 
 
+WORDING = 'sms:'  # merchant_categories keys starting with this are message wordings, not merchant names
+
+
+def wording(body):
+    """A message's wording without its numbers (amounts, dates, references, card digits), so
+    'Salary credited SAR 9,000 on 01/10' and 'Salary credited SAR 9,500 on 01/11' count as similar."""
+    return WORDING + ' '.join(re.sub(r'[\d٠-٩][\d٠-٩,.:/*-]*', '#', body.lower()).split())
+
+
 def set_category(db, txn_id, category, whole_merchant):
-    """Save a correction. With whole_merchant, every past and future transaction from that merchant follows it."""
-    found = db.run('SELECT merchant FROM transactions WHERE id = :id', id=txn_id)
+    """Save a correction. With whole_merchant, every past and future transaction from that merchant follows it;
+    for a message with no merchant, every message with the same wording does."""
+    found = db.run('SELECT merchant, body FROM transactions WHERE id = :id', id=txn_id)
     if not found:
         raise KeyError('no such transaction')
-    merchant = found[0]['merchant'].strip().lower()
-    if whole_merchant and merchant:
+    merchant = found[0]['merchant'].strip().lower() or wording(found[0]['body'])
+    if whole_merchant:
         db.run('INSERT INTO merchant_categories (merchant, category) VALUES (:m, :c) '
                'ON CONFLICT (merchant) DO UPDATE SET category = excluded.category', m=merchant, c=category)
         db.run('DELETE FROM txn_categories WHERE txn_id = :id', id=txn_id)  # so this one follows the merchant rule too
