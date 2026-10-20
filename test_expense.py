@@ -82,6 +82,14 @@ class ParseTest(unittest.TestCase):
             find = server.rule_finder(rules)
             self.assertEqual((find('JARIR MEDICAL CO'), find('JARIR BOOKSTORE'), find('PANDA')), ('Health', 'Shopping', None))
 
+    def test_markets_are_groceries_and_eating_out_is_food(self):
+        cases = {'LULU HYPERMARKET': 'Groceries', 'AL SADHAN SUPER MARKET': 'Groceries', 'Danube Fresh Foods': 'Groceries',
+                 'BAQALA AL NOOR': 'Groceries', 'تموينات الخير': 'Groceries', 'MINI MARKET 24': 'Groceries',
+                 'AL BAIK RESTAURANTS': 'Food', 'HALF MILLION COFFEE': 'Food', 'DOSE CAFE': 'Food', 'KUDU REST': 'Food',
+                 'ABU SAAD BAKERY': 'Food', 'MAESTRO PIZZA': 'Food', 'Fresh Juice Corner': 'Food', 'مطعم البيك': 'Food',
+                 'BARNS COFFEES': 'Food', 'MCDONALDS': 'Food'}
+        self.assertEqual({m: categorize(m, '', RULES) for m in cases}, cases)
+
     def test_whole_word_categories(self):
         self.assertEqual(categorize('MOTOROLA STORE', '', RULES), 'Uncategorized')  # not "ola" → Transport
 
@@ -171,17 +179,17 @@ class StoreMixin:
 
     def test_corrections_follow_the_merchant(self):
         db = self.db
-        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD BAKERY\nRef 1', '2026-10-01T09:00:00+03:00')
-        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 12.00\nAt: ABU SAAD BAKERY\nRef 2', '2026-10-02T09:00:00+03:00')
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD TRADING\nRef 1', '2026-10-01T09:00:00+03:00')
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 12.00\nAt: ABU SAAD TRADING\nRef 2', '2026-10-02T09:00:00+03:00')
         server.store_sms(db, 'B', 'SAR 99.00 paid to NOON.COM', '2026-10-03T09:00:00+03:00')
         cats = lambda: {t['body'][-5:]: t['category'] for t in server.transactions(db)}
         first = next(t for t in server.transactions(db) if t['body'].endswith('Ref 1'))
         self.assertEqual(first['category'], 'Uncategorized')
 
         self.assertEqual(len(server.summary(db)['to_review']), 2)  # both bakery visits; NOON is Shopping already
-        server.set_category(db, first['id'], 'Food', True)  # "always use this for ABU SAAD BAKERY"
+        server.set_category(db, first['id'], 'Food', True)  # "always use this for ABU SAAD TRADING"
         self.assertEqual(server.summary(db)['to_review'], [])  # saving one cleared both from the list
-        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 8.00\nAt: ABU SAAD BAKERY\nRef 3', '2026-10-04T09:00:00+03:00')
+        server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 8.00\nAt: ABU SAAD TRADING\nRef 3', '2026-10-04T09:00:00+03:00')
         self.assertEqual([c for k, c in cats().items() if k.startswith('Ref')], ['Food', 'Food', 'Food'])  # past and future
 
         noon = next(t for t in server.transactions(db) if 'NOON' in t['body'])
