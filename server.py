@@ -90,6 +90,7 @@ class DB:
             self.run(schema)
             for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA]:
                 self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
+            self.reread_amounts()
             DB._schema_ready.add(url)
 
     @staticmethod
@@ -100,6 +101,16 @@ class DB:
         return pg8000.native.Connection(
             unquote(u.username or ''), host=u.hostname, port=u.port or 5432, database=u.path.lstrip('/'),
             password=unquote(u.password or ''), ssl_context=ssl.create_default_context() if tls else None)
+
+    def reread_amounts(self):
+        """Once per server start: read amount, currency and direction again from every stored SMS and fix the ones
+        the current parser reads differently, so a parser fix also corrects messages stored before it
+        (e.g. a date on the line after 'Balance: … SAR' once read as the amount)."""
+        for r in self.run('SELECT id, body, amount_minor, currency, direction FROM transactions'):
+            again = parse(r['body'])
+            if again and (again['amount_minor'], again['currency'], again['direction']) != (r['amount_minor'], r['currency'], r['direction']):
+                self.run('UPDATE transactions SET amount_minor = :a, currency = :c, direction = :d WHERE id = :id',
+                         a=again['amount_minor'], c=again['currency'], d=again['direction'], id=r['id'])
 
     def run(self, sql, **params):
         if self.pg:

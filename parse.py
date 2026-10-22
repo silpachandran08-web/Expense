@@ -8,8 +8,11 @@ _CUR = r'(rs\.?|inr|₹|sar|sr|ريال|ر\.س)'
 _NUM = r'(\d[\d,]*(?:\.\d{1,2})?)'
 # Currency before the number ("Rs.250", "SAR 45.00") is tried first; number before currency ("45.00 ريال") is the fallback,
 # so an account number like "XX1234 Rs 500" isn't mistaken for the amount.
-CUR_FIRST = re.compile(rf'(?<![A-Za-z]){_CUR}\s*:?\s*{_NUM}', re.I)
-NUM_FIRST = re.compile(rf'(?<![\w.]){_NUM}\s*{_CUR}(?![A-Za-z])', re.I)
+# [ \t] not \s: a currency at the end of a line ('Balance: 181,573.84 SAR') must not grab the next line's number
+# (a date like '22/2/26' read as 22.00).
+CUR_FIRST = re.compile(rf'(?<![A-Za-z]){_CUR}[ \t]*:?[ \t]*{_NUM}', re.I)
+NUM_FIRST = re.compile(rf'(?<![\w.]){_NUM}[ \t]*{_CUR}(?![A-Za-z])', re.I)
+AMOUNT_LINE = re.compile(r'(?:\bamount\b|\bamt\b|مبلغ)[^\n]*', re.I)  # 'Amount: 57.5 SAR' beats balances and dates
 
 # Arabic words are matched as substrings because Arabic attaches prefixes ("بال", "و") to words.
 DEBIT = re.compile(r'\b(?:debited|spent|paid|sent|withdrawn|withdrawal|purchase|outgoing|pos)\b|شراء|خصم|سحب|صادرة|سداد|دفع', re.I)
@@ -33,10 +36,15 @@ def parse(body):
     body = body.translate(ARABIC_DIGITS)
     if len(body) > MAX_SMS or SKIP.search(body):
         return None
-    amount = CUR_FIRST.search(body)
-    currency, number = (amount.group(1), amount.group(2)) if amount else (None, None)
-    if not amount and (amount := NUM_FIRST.search(body)):
-        number, currency = amount.group(1), amount.group(2)
+    currency = number = amount = None
+    labelled = AMOUNT_LINE.search(body)
+    for text in ((labelled.group(0),) if labelled else ()) + (body,):
+        if amount := CUR_FIRST.search(text):
+            currency, number = amount.group(1), amount.group(2)
+        elif amount := NUM_FIRST.search(text):
+            number, currency = amount.group(1), amount.group(2)
+        if amount:
+            break
     debit, credit = DEBIT.search(body), CREDIT.search(body)
     if not amount or not (debit or credit):
         return None
@@ -57,7 +65,7 @@ def parse(body):
 
 
 ACCOUNT = re.compile(
-    r'(?:\b(card|mada|visa|master\s?card|credit card|debit card|a/?c|acct|account)\b|(بطاقة|حساب))'
+    r'(?:\b(card|mada|visa|master\s?card|credit card|debit card|a/?c|acct|account|by(?=\s*:))\b|(بطاقة|حساب))'
     r'[^\d\n]{0,15}?[x*•.]*(\d{4})(?!\d)', re.I)
 
 
@@ -67,7 +75,7 @@ def account_of(body):
     if not m:
         return ''
     word = (m.group(1) or '').lower()
-    kind = 'Card' if m.group(2) == 'بطاقة' or word in {'card', 'mada', 'visa', 'mastercard', 'master card', 'credit card', 'debit card'} else 'Account'
+    kind = 'Card' if m.group(2) == 'بطاقة' or word in {'card', 'mada', 'visa', 'mastercard', 'master card', 'credit card', 'debit card', 'by'} else 'Account'
     return f'{kind} •{m.group(3)}'
 
 

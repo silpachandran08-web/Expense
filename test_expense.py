@@ -37,6 +37,11 @@ SAMPLES = [
      8725, 'SAR', 'debit', 'PANDA', 'Groceries'),
     ('حوالة واردة\nمبلغ: SAR 12,000.00\nمن: ACME CO\nإلى: حسابك 1234',
      1200000, 'SAR', 'credit', 'ACME CO', 'Uncategorized'),
+    # The amount line comes first; the date on the line after 'Balance: … SAR' must not be read as the amount.
+    ('Online Purchase\nBy:1596 ;Visa-Apple Pay\nAmount:57.5 SAR\nAt:Mobily\nBalance:181573.84 SAR\n22/2/26 16:08',
+     5750, 'SAR', 'debit', 'Mobily', 'Bills & Utilities'),
+    ('Balance: SAR 9,000.00\nPoS Purchase\nAmount: SAR 45.00\nAt: PANDA',
+     4500, 'SAR', 'debit', 'PANDA', 'Groceries'),
     ('ATM Withdrawal\nAmount: SR 500\nCard: *1234\nATM: Al Rajhi Olaya',
      50000, 'SAR', 'debit', '', 'Cash'),
 ]
@@ -102,6 +107,14 @@ class StoreMixin:
 
     def tearDown(self):
         self.db.close()
+
+    def test_misread_amounts_are_fixed_on_start(self):
+        sms = 'Online Purchase\nBy:1596 ;Visa-Apple Pay\nAmount:57.5 SAR\nAt:Mobily\nBalance:181573.84 SAR\n22/2/26 16:08'
+        server.store_sms(self.db, 'AlRajhiBank', sms, '2026-02-22T16:08:00+03:00')
+        self.db.run('UPDATE transactions SET amount_minor = 2200')  # what the old parser stored (the date's "22")
+        self.db.reread_amounts()
+        t = server.transactions(self.db)[0]
+        self.assertEqual((t['amount'], t['merchant'], t['account']), (57.5, 'Mobily', 'AlRajhiBank · Card •1596'))
 
     def test_store_dedupes_and_summarizes_per_currency(self):
         db = self.db
@@ -307,7 +320,7 @@ class AppTest(unittest.TestCase):
                  + [{'sender': 'X', 'body': NOT_TRANSACTIONS[6], 'received_at': '1792002600000'}]}
         body = json.dumps(batch).encode()
         status, out = self.call('POST', '/api/import', body)
-        self.assertEqual((status, json.loads(out)), (200, {'received': 6, 'stored': 5}))  # the OTP is skipped
+        self.assertEqual((status, json.loads(out)), (200, {'received': len(SAMPLES[6:]) + 1, 'stored': len(SAMPLES[6:])}))  # the OTP is skipped
         self.assertEqual(json.loads(self.call('POST', '/api/import', body)[1])['stored'], 0)  # re-import adds nothing
         self.assertEqual(json.loads(self.call('GET', '/api/summary', query='currency=SAR')[1])['month'], '2026-10')
         # JSON only (no cross-site form posts), batches capped, login required.
