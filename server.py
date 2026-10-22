@@ -515,7 +515,7 @@ def app(environ, start_response):
             correction = read_category(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
-    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health'), ('GET', '/api/search')}:
+    elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health'), ('GET', '/api/search'), ('GET', '/api/latest')}:
         return respond('404 Not Found', {'error': 'not found'})
 
     started = time.perf_counter()
@@ -546,6 +546,8 @@ def app(environ, start_response):
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})
         if path == '/api/summary':
             return respond('200 OK', summary(db, query.get('month'), query.get('currency')))
+        if path == '/api/latest':  # a tiny "anything new?" check the open app polls; one cheap query
+            return respond('200 OK', db.run('SELECT COUNT(*) AS count, MAX(id) AS last_id FROM transactions')[0])
         if path == '/api/search':
             return respond('200 OK', search(db, query.get('q', ''), query.get('currency')))
         return respond('200 OK', transactions(db, query.get('month'), query.get('currency')))

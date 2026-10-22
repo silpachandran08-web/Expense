@@ -385,6 +385,14 @@ class AppTest(unittest.TestCase):
         self.assertEqual(cats, {40.0: 'Uncategorized', 900.0: 'Income'})  # the refund waits for a category; a transfer in is income
         self.assertEqual([t['amount'] for t in s['to_review']], [40.0])
 
+    def test_latest_marker_changes_when_an_sms_arrives(self):
+        before = json.loads(self.call('GET', '/api/latest')[1])
+        self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': SAMPLES[6][0]}).encode())
+        after = json.loads(self.call('GET', '/api/latest')[1])
+        self.assertEqual((before['count'], after['count']), (0, 1))
+        self.assertNotEqual(before['last_id'], after['last_id'])
+        self.assertEqual(self.call('GET', '/api/latest', auth='')[0], 401)
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')

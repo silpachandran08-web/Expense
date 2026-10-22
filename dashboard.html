@@ -453,6 +453,26 @@ function setData(sum, all) {
   state.sum = sum; state.currency = sum.currency; state.all = prep(all);
   state.earliest = state.all.reduce((a, t) => t._d < a ? t._d : a, today());
 }
+// Keep the screen current without a manual refresh: ask "anything new?" when the app comes back to the
+// foreground and every 30 s while it's on screen (never in the background), and reload only when there is.
+let seen = null;
+async function checkForNew() {
+  if (document.hidden) return;
+  try {
+    const r = await fetch('/api/latest');
+    if (!r.ok) return;
+    const now = await r.json(), before = seen;
+    seen = now;
+    if (!before || (now.count === before.count && now.last_id === before.last_id)) return;
+    await load();
+    const added = now.count - before.count;
+    if (added > 0) toast(`${added} new transaction${added === 1 ? '' : 's'}`);
+  } catch {}  // offline: try again on the next tick
+}
+setInterval(checkForNew, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForNew(); });
+addEventListener('pageshow', checkForNew);
+
 async function load(force = false) {
   pending = null;
   const seq = ++loadSeq, C = state.currency;
