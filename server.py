@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
-from parse import ARABIC_DIGITS, account_of, categorize, compile_rules, merchant_of, parse
+from parse import AD, ARABIC_DIGITS, account_of, categorize, compile_rules, merchant_of, parse
 
 HERE = Path(__file__).parent
 RULES = HERE / 'rules.json'
@@ -60,6 +60,8 @@ SECRET = re.compile(r'\b(?:otp|one[- ]time|verification|passcode|password|pin)\b
 IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
 OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
 NOT_COUNTED = {IGNORED, OWN_TRANSFER}
+# Advert senders: Saudi rules put "AD" on promotional sender names ("Mobily-AD"); Indian promotional ones end in "-P".
+AD_SENDER = re.compile(r'(?:^ad[-_ ]|[-_ ]ad$|[-_ ]adv$|-p$)', re.I)
 # A refund from a merchant with no category is money back on spending, not income: it waits for a category.
 REFUND = re.compile(r'\b(?:refund(?:ed)?|reversal|reversed|cashback)\b|استرداد|مسترد', re.I)
 # Words that mark a bank-to-bank transfer (English and Arabic), used to pair the two sides of an own transfer.
@@ -111,7 +113,11 @@ class DB:
         """Once per server start: read amount, currency and direction again from every stored SMS and fix the ones
         the current parser reads differently, so a parser fix also corrects messages stored before it
         (e.g. a date on the line after 'Balance: … SAR' once read as the amount)."""
-        for r in self.run('SELECT id, body, amount_minor, currency, direction FROM transactions'):
+        for r in self.run('SELECT id, sender, body, amount_minor, currency, direction FROM transactions'):
+            if AD_SENDER.search(r['sender'].strip()) or AD.search(r['body']):  # an advert stored before adverts were recognized
+                self.run('INSERT INTO txn_categories (txn_id, category) VALUES (:id, :c) ON CONFLICT (txn_id) DO NOTHING',
+                         id=r['id'], c=IGNORED)  # DO NOTHING: a category you set yourself stays
+                continue
             again = parse(r['body'])
             if again and (again['amount_minor'], again['currency'], again['direction']) != (r['amount_minor'], r['currency'], r['direction']):
                 self.run('UPDATE transactions SET amount_minor = :a, currency = :c, direction = :d WHERE id = :id',
@@ -146,7 +152,7 @@ def store_many(db, messages):
     (one round trip, so a big import stays fast). Returns the stored transactions."""
     rows = {}
     for sender, body, received_at in messages:
-        txn = parse(body)
+        txn = None if AD_SENDER.search(sender.strip()) else parse(body)
         if txn:
             rows.setdefault(body, {**txn, 'sender': sender, 'body': body, 'received_at': received_at})
     if not rows:
@@ -183,6 +189,8 @@ def save_skipped(db, receipt_id, amount_minor, direction, currency):
     db.run('INSERT INTO transactions (received_at, sender, body, amount_minor, currency, direction, merchant) '
            'VALUES (:r, :s, :b, :a, :c, :d, :m) ON CONFLICT (body) DO NOTHING',
            r=sms['received_at'], s=sms['sender'], b=sms['body'], a=amount_minor, c=currency, d=direction, m=merchant_of(sms['body']))
+    db.run('INSERT INTO txn_categories (txn_id, category) SELECT id, :c FROM transactions WHERE body = :b ON CONFLICT (txn_id) DO NOTHING',
+           c='Uncategorized', b=sms['body'])  # you chose to keep it: the start-up advert sweep must leave it alone
     db.run("UPDATE phone_deliveries SET outcome = 'saved by you' WHERE id = :id", id=receipt_id)
     db.run('DELETE FROM skipped_sms WHERE delivery_id = :id', id=receipt_id)
 
@@ -581,9 +589,10 @@ def app(environ, start_response):
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
             stored = store_sms(db, *sms)
-            skipped = not stored and not parse(sms[1])
-            record_delivery(db, sms[0], 'not a transaction' if skipped else 'saved' if stored else 'already had it',
-                            (sms[1], sms[2]) if skipped else None)
+            advert = bool(AD_SENDER.search(sms[0].strip()))
+            skipped = not stored and not advert and not parse(sms[1])
+            record_delivery(db, sms[0], 'advert, not counted' if advert else 'not a transaction' if skipped
+                            else 'saved' if stored else 'already had it', (sms[1], sms[2]) if skipped else None)
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})
         if path == '/api/summary':
             return respond('200 OK', summary(db, query.get('month'), query.get('currency')))

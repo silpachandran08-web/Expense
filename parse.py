@@ -21,6 +21,10 @@ CREDIT = re.compile(r'\b(?:credited|received|deposited|deposit|incoming|refunded
 SKIP = re.compile(
     r'\b(?:otp|one[- ]time password|verification code|passcode|will be debited|is due|due on|requested|pre-?approved|offer)\b'
     r'|رمز التحقق|رمز التفعيل|كلمة المرور|لمرة واحدة|مستحق', re.I)
+# Adverts: "Purchase 20GB for SAR 99 now! Dial *1100#" has an amount and "purchase" but nothing was paid.
+AD = re.compile(
+    r'\b(?:promo(?:tion)?|discount|unsubscribe|congratulations|limited time|valid (?:till|until)|(?:recharge|subscribe|buy|shop) now)\b'
+    r'|\bdial\s*\*|\d\s*%\s*off\b|عرض خاص|اشترك الآن|لفترة محدودة', re.I)
 _END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using|for|في)\b|[,;(\n]|\.(?=\s|$)|$)'  # a dot ends the name only as a full stop, so "NOON.COM" stays whole
 MERCHANT = [
     re.compile(r'\bVPA\s+([\w.\-]+@[\w.\-]+)', re.I),
@@ -34,7 +38,7 @@ MAX_SMS = 1000  # bank SMS are far shorter; also keeps the UNIQUE(body) index un
 def parse(body):
     """Return {amount_minor, currency, direction, merchant} or None if this is not a completed transaction."""
     body = body.translate(ARABIC_DIGITS)
-    if len(body) > MAX_SMS or SKIP.search(body):
+    if len(body) > MAX_SMS or SKIP.search(body) or AD.search(body):
         return None
     currency = number = amount = None
     labelled = AMOUNT_LINE.search(body)

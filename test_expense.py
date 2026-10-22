@@ -55,6 +55,10 @@ NOT_TRANSACTIONS = [
     'Hi, your package is out for delivery.',
     'رمز التحقق: 4821 لعملية شراء بمبلغ 200 SAR لدى NOON',
     'Your verification code is 9921 for a purchase of SAR 89.00',
+    # Adverts
+    'Purchase 20GB data for SAR 99 now! Dial *1100# . Valid until 31/10',
+    'Get 50% discount: recharge SAR 30 and enjoy unlimited calls. To unsubscribe send STOP',
+    'عرض خاص: اشترك الآن في باقة 25 جيجا بـ 99 ريال لفترة محدودة',
 ]
 
 
@@ -107,6 +111,17 @@ class StoreMixin:
 
     def tearDown(self):
         self.db.close()
+
+    def test_adverts_stored_before_are_ignored_on_start_unless_you_chose(self):
+        db = self.db
+        for sender, body in (('STC-AD', 'PoS Purchase\nAmount: SAR 30.00\nAt: STC'), ('Zain', 'PoS Purchase\nAmount: SAR 50.00\nAt: ZAIN SHOP 1'),
+                             ('Zain', 'PoS Purchase\nAmount: SAR 70.00\nAt: ZAIN SHOP 2')):
+            db.run("INSERT INTO transactions (received_at, sender, body, amount_minor, currency, direction, merchant) "
+                   "VALUES ('2026-10-01T10:00:00+03:00', :s, :b, 1, 'SAR', 'debit', '')", s=sender, b=body + ' recharge now')
+        shop2 = next(t for t in server.transactions(db) if 'SHOP 2' in t['body'])
+        server.set_category(db, shop2['id'], 'Bills & Utilities', False)  # you decided this one counts
+        db.reread_amounts()
+        self.assertEqual(sorted(t['category'] for t in server.transactions(db)), ['Bills & Utilities', 'Ignored', 'Ignored'])
 
     def test_misread_amounts_are_fixed_on_start(self):
         sms = 'Online Purchase\nBy:1596 ;Visa-Apple Pay\nAmount:57.5 SAR\nAt:Mobily\nBalance:181573.84 SAR\n22/2/26 16:08'
@@ -392,6 +407,15 @@ class AppTest(unittest.TestCase):
         self.assertEqual((before['count'], after['count']), (0, 1))
         self.assertNotEqual(before['last_id'], after['last_id'])
         self.assertEqual(self.call('GET', '/api/latest', auth='')[0], 401)
+
+    def test_adverts_are_not_counted(self):
+        send = lambda sender, body: self.call('POST', '/sms', json.dumps({'sender': sender, 'body': body}).encode())
+        send('Mobily-AD', 'PoS Purchase\nAmount: SAR 99.00\nAt: MOBILY STORE')  # looks like a purchase, but the sender is an advert
+        send('VM-AMAZON-P', 'Rs 499 paid at AMAZON')                            # Indian promotional sender
+        send('AlRajhiBank', 'PoS Purchase\nAmount: SAR 45.00\nAt: PANDA')
+        s = json.loads(self.call('GET', '/api/summary')[1])
+        self.assertEqual([t['merchant'] for t in s['transactions']], ['PANDA'])
+        self.assertEqual([d['outcome'] for d in s['deliveries']][::-1], ['advert, not counted', 'advert, not counted', 'saved'])
 
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
