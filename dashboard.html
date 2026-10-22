@@ -181,6 +181,14 @@
   .phone-last { margin: 0 0 8px; font-size: 15px; }
   .rows { list-style: none; margin: 0; padding: 0; }
   .rows li + li { border-top: 1px solid var(--line); }
+  .skipped > summary { list-style: none; cursor: pointer; }
+  .skipped > summary::-webkit-details-marker { display: none; }
+  .skipped .link-ish { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .skipped pre { margin: 0 0 10px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); }
+  .keep { display: grid; gap: 10px; margin-bottom: 14px; }
+  .keep label { display: grid; gap: 4px; font-size: 13px; color: var(--text-2); min-width: 0; }
+  .keep input, .keep select { font: inherit; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); width: 100%; }
+  .keep-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .delivery { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; color: var(--text-2); }
   .delivery span:last-child { text-align: right; }
   .bad { color: var(--bad); font-weight: 600; }
@@ -738,6 +746,38 @@ function installCard() {
     : '<p class="muted">In Chrome, tap <b>⋮</b> (top right), then <b>Install app</b> or <b>Add to Home screen</b>.</p>';
   return card('Install on your phone', '', body);
 }
+// A skipped SMS ('not a transaction') can be saved as a transaction by hand, with the amount and direction
+// guessed from its text for you to check.
+function skippedRow(d) {
+  const text = d.body.replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/٫/g, '.');
+  const amount = (text.match(/(?:sar|sr|inr|rs\.?|₹|ريال)\s*:?\s*(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s*(?:sar|sr|inr|rs|ريال)/i) || [])
+    .slice(1).find(Boolean)?.replace(/,/g, '') || '';
+  const inr = /\b(?:inr|rs)\b|₹/i.test(text), credit = /credit|receiv|refund|deposit|incoming|إيداع|واردة|استرداد/i.test(text);
+  const opt = (v, label, on) => `<option value="${v}" ${on ? 'selected' : ''}>${label}</option>`;
+  return `<li><details class="skipped"><summary class="delivery"><span>${ago(d.at)} · ${esc(d.sender)}</span><span class="link-ish">not a transaction · review ›</span></summary>` +
+    `<pre>${esc(d.body)}</pre><form class="keep" data-id="${d.id}">` +
+    `<label>Amount<input name="amount" inputmode="decimal" value="${esc(amount)}" required pattern="[0-9.,]+"></label>` +
+    `<div class="keep-row"><label>Type<select name="direction">${opt('debit', 'Spent', !credit)}${opt('credit', 'Received', credit)}</select></label>` +
+    `<label>Currency<select name="currency">${opt('SAR', 'SAR', !inr)}${opt('INR', 'INR', inr)}</select></label></div>` +
+    `<button class="btn">Save as transaction</button></form></details></li>`;
+}
+document.addEventListener('submit', async e => {
+  if (!e.target.matches('form.keep')) return;
+  e.preventDefault();
+  const f = e.target, button = f.querySelector('button');
+  button.disabled = true;
+  try {
+    const r = await fetch('/api/deliveries/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(f.dataset.id), amount: f.amount.value, direction: f.direction.value, currency: f.currency.value }) });
+    if (r.status === 401) { location.href = '/login'; return; }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+    toast('Saved as a transaction. Set its category in Activity.');
+    await load(true);
+  } catch (err) {
+    toast(`Could not save: ${err.message}`);
+    button.disabled = false;
+  }
+});
 function settings() {
   // Receipts for what the phone sent, so you can check a message arrived (and what happened to it).
   const deliveries = state.sum.deliveries || [], last = deliveries[0];
@@ -746,7 +786,8 @@ function settings() {
     `<section class="card"><a class="ln" href="/import"><span class="nm"><b>Import old SMS</b><small>Add messages from before the phone was connected</small></span>${go1}</a></section>` +
     card('Phone connection', 'last 7 days', `<p class="phone-last">${last ? `Last SMS from your phone: <b>${ago(last.at)}</b> · ${esc(last.outcome)}`
       : '<span class="bad">No SMS from your phone in the last 7 days.</span> Check the forwarder app: the address, the password after "Bearer", and that Samsung isn\'t putting it to sleep.'}</p>` +
-      `<ul class="rows">${deliveries.map(d => `<li class="delivery"><span>${ago(d.at)} · ${esc(d.sender)}</span><span class="${d.outcome.startsWith('refused') ? 'bad' : ''}">${esc(d.outcome)}</span></li>`).join('')}</ul>`) +
+      `<ul class="rows">${deliveries.map(d => d.body ? skippedRow(d)
+        : `<li class="delivery"><span>${ago(d.at)} · ${esc(d.sender)}</span><span class="${d.outcome.startsWith('refused') ? 'bad' : ''}">${esc(d.outcome)}</span></li>`).join('')}</ul>`) +
     `<section class="card"><form method="post" action="/logout" onsubmit="cache.clear()"><button class="btn">Sign out</button></form></section>` +
     `<p class="version">Version ${esc(state.sum.version || 'unknown')}</p>` };
 }

@@ -14,6 +14,7 @@ import ssl
 from collections import defaultdict
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -52,6 +53,10 @@ MAX_CATEGORY = 40
 # A receipt per SMS the phone sends (time, sender, what happened; never the text), so you can check delivery.
 DELIVERIES_SCHEMA = 'CREATE TABLE IF NOT EXISTS phone_deliveries (id {id} PRIMARY KEY, at TEXT NOT NULL, sender TEXT NOT NULL, outcome TEXT NOT NULL)'
 DELIVERY_DAYS = 7
+# The text of SMS that were skipped as 'not a transaction', kept as long as their receipt, so you can save one
+# as a transaction from Settings. Codes and passwords are never kept.
+SKIPPED_SCHEMA = 'CREATE TABLE IF NOT EXISTS skipped_sms (delivery_id BIGINT PRIMARY KEY, body TEXT NOT NULL, received_at TEXT NOT NULL)'
+SECRET = re.compile(r'\b(?:otp|one[- ]time|verification|passcode|password|pin)\b|رمز|كلمة المرور', re.I)
 IGNORED = 'Ignored'  # a category like any other, except it never counts toward totals
 OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
 NOT_COUNTED = {IGNORED, OWN_TRANSFER}
@@ -88,7 +93,7 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
-            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA]:
+            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA]:
                 self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
             self.reread_amounts()
             DB._schema_ready.add(url)
@@ -155,13 +160,31 @@ def store_many(db, messages):
             for row in rows.values() if row['body'] in inserted]
 
 
-def record_delivery(db, sender, outcome):
+def record_delivery(db, sender, outcome, skipped=None):
+    """skipped: (body, received_at) of an SMS that wasn't read as a transaction, kept so you can save it yourself."""
     now = datetime.now(timezone.utc)
-    db.run('INSERT INTO phone_deliveries (at, sender, outcome) VALUES (:at, :s, :o)',
-           at=now.isoformat(timespec='seconds'), s=sender[:40], o=outcome)
+    receipt = db.run('INSERT INTO phone_deliveries (at, sender, outcome) VALUES (:at, :s, :o) RETURNING id',
+                     at=now.isoformat(timespec='seconds'), s=sender[:40], o=outcome)[0]['id']
+    if skipped and not SECRET.search(skipped[0]):
+        db.run('INSERT INTO skipped_sms (delivery_id, body, received_at) VALUES (:id, :b, :r)', id=receipt, b=skipped[0], r=skipped[1])
     # Keep a week, and at most the newest 100, so a stream of refused requests can't fill the table.
     db.run('DELETE FROM phone_deliveries WHERE at < :old OR id <= (SELECT id FROM phone_deliveries ORDER BY id DESC LIMIT 1 OFFSET 100)',
            old=(now - timedelta(days=DELIVERY_DAYS)).isoformat(timespec='seconds'))
+    db.run('DELETE FROM skipped_sms WHERE delivery_id NOT IN (SELECT id FROM phone_deliveries)')
+
+
+def save_skipped(db, receipt_id, amount_minor, direction, currency):
+    """Store a skipped SMS as a transaction with the amount and direction you gave; its receipt then says so."""
+    found = db.run('SELECT s.body, s.received_at, d.sender FROM skipped_sms s JOIN phone_deliveries d ON d.id = s.delivery_id '
+                   'WHERE s.delivery_id = :id', id=receipt_id)
+    if not found:
+        raise KeyError('no such message')
+    sms = found[0]
+    db.run('INSERT INTO transactions (received_at, sender, body, amount_minor, currency, direction, merchant) '
+           'VALUES (:r, :s, :b, :a, :c, :d, :m) ON CONFLICT (body) DO NOTHING',
+           r=sms['received_at'], s=sms['sender'], b=sms['body'], a=amount_minor, c=currency, d=direction, m=merchant_of(sms['body']))
+    db.run("UPDATE phone_deliveries SET outcome = 'saved by you' WHERE id = :id", id=receipt_id)
+    db.run('DELETE FROM skipped_sms WHERE delivery_id = :id', id=receipt_id)
 
 
 def store_sms(db, sender, body, received_at):
@@ -340,7 +363,8 @@ def summary(db, month=None, currency=None, every=None):
         # Every month's uncategorized ones, newest first, for the "Needs a category" list.
         'to_review': [t for t in rows if t['category'] == 'Uncategorized'],
         'version': VERSION,
-        'deliveries': db.run('SELECT at, sender, outcome FROM phone_deliveries ORDER BY id DESC LIMIT 10'),
+        'deliveries': db.run('SELECT d.id, d.at, d.sender, d.outcome, s.body FROM phone_deliveries d '
+                             'LEFT JOIN skipped_sms s ON s.delivery_id = d.id ORDER BY d.id DESC LIMIT 20'),
     }
 
 
@@ -510,6 +534,15 @@ def app(environ, start_response):
             batch = read_import(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif (method, path) == ('POST', '/api/deliveries/save'):
+        try:
+            keep = read_json(environ, MAX_BODY)
+            amount_minor = int(Decimal(str(keep['amount']).replace(',', '').strip()) * 100)
+            if not 0 < amount_minor < 10 ** 11 or keep['direction'] not in ('debit', 'credit') or keep['currency'] not in ('SAR', 'INR'):
+                raise ValueError('amount, direction (debit/credit) and currency (SAR/INR) are required')
+            keep = (int(keep['id']), amount_minor, keep['direction'], keep['currency'])
+        except (ValueError, KeyError, TypeError, ArithmeticError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif (method, path) == ('POST', '/api/category'):
         try:
             correction = read_category(environ)
@@ -524,6 +557,12 @@ def app(environ, start_response):
         if path == '/api/health':
             db.run('SELECT 1')
             return respond('200 OK', health(db, round((time.perf_counter() - started) * 1000)))
+        if path == '/api/deliveries/save':
+            try:
+                save_skipped(db, *keep)
+            except KeyError:
+                return respond('404 Not Found', {'error': 'that message is no longer kept'})
+            return respond('200 OK', {'saved': True})
         if path == '/api/category':
             try:
                 set_category(db, *correction)
@@ -542,7 +581,9 @@ def app(environ, start_response):
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
             stored = store_sms(db, *sms)
-            record_delivery(db, sms[0], 'saved' if stored else 'already had it' if parse(sms[1]) else 'not a transaction')
+            skipped = not stored and not parse(sms[1])
+            record_delivery(db, sms[0], 'not a transaction' if skipped else 'saved' if stored else 'already had it',
+                            (sms[1], sms[2]) if skipped else None)
             return respond('201 Created' if stored else '200 OK', {'stored': bool(stored), 'transaction': stored})
         if path == '/api/summary':
             return respond('200 OK', summary(db, query.get('month'), query.get('currency')))

@@ -399,7 +399,25 @@ class AppTest(unittest.TestCase):
         got = json.loads(self.call('GET', '/api/summary')[1])['deliveries']
         self.assertEqual([d['outcome'] for d in got][::-1],
                          ['saved', 'already had it', 'not a transaction', 'refused: wrong password in the phone app'])
-        self.assertNotIn('body', got[0])  # receipts never keep the message text
+        self.assertEqual([d['body'] for d in got], [None] * 4)  # nothing kept: saved, duplicate, an OTP, refused
+
+    def test_save_a_skipped_sms_as_a_transaction(self):
+        send = lambda body: self.call('POST', '/sms', json.dumps({'sender': 'STCPay', 'body': body, 'received_at': '2026-10-21T09:30:00+03:00'}).encode())
+        send('Your wallet was topped up with 150.00 SAR from Card ending 1234')  # no spent/received word: skipped
+        send('Your OTP is 4821 for SAR 99')                                     # skipped, and never kept
+        got = json.loads(self.call('GET', '/api/summary')[1])['deliveries']
+        topup, otp = got[1], got[0]
+        self.assertEqual((topup['outcome'], otp['body']), ('not a transaction', None))
+        self.assertIn('150.00 SAR', topup['body'])
+        save = lambda **kw: self.call('POST', '/api/deliveries/save', json.dumps({'id': topup['id'], **kw}).encode())[0]
+        self.assertEqual(save(amount='abc', direction='debit', currency='SAR'), 400)
+        self.assertEqual(save(amount='150', direction='sideways', currency='SAR'), 400)
+        self.assertEqual(save(amount='150.00', direction='debit', currency='SAR'), 200)
+        s = json.loads(self.call('GET', '/api/summary', query='month=2026-10&currency=SAR')[1])
+        self.assertEqual([(t['amount'], t['direction']) for t in s['transactions']], [(150.0, 'debit')])
+        self.assertEqual(s['deliveries'][1]['outcome'], 'saved by you')
+        self.assertEqual(save(amount='150', direction='debit', currency='SAR'), 404)  # already saved
+        self.assertEqual(self.call('POST', '/api/deliveries/save', b'{}', auth='')[0], 401)
 
     def test_cards_and_accounts(self):
         for body in (SAMPLES[6][0], SAMPLES[7][0], 'PoS Purchase\nAmount: SAR 10.00\nCard: *1234\nAt: PANDA'):
