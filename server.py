@@ -11,6 +11,7 @@ import os
 import re
 import sqlite3
 import ssl
+import sys
 from collections import defaultdict
 import time
 from datetime import datetime, timedelta, timezone
@@ -97,8 +98,11 @@ class DB:
             self.run(schema)
             for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA]:
                 self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
-            self.reread_amounts()
-            DB._schema_ready.add(url)
+            DB._schema_ready.add(url)  # before the re-read: if that fails, requests must still work and not retry it each time
+            try:
+                self.reread_amounts()
+            except Exception as e:  # a clean-up; never worth failing a request over
+                print(f'reread_amounts failed: {type(e).__name__}: {e}', file=sys.stderr)
 
     @staticmethod
     def _connect(url):
@@ -112,16 +116,30 @@ class DB:
     def reread_amounts(self):
         """Once per server start: read amount, currency and direction again from every stored SMS and fix the ones
         the current parser reads differently, so a parser fix also corrects messages stored before it
-        (e.g. a date on the line after 'Balance: … SAR' once read as the amount)."""
+        (e.g. a date on the line after 'Balance: … SAR' once read as the amount). Adverts stored before adverts
+        were recognized are marked Ignored, unless you set their category yourself. Batched, a few hundred rows per
+        statement: one round trip per row could outlast the request on a slow link."""
+        has_category = {r['txn_id'] for r in self.run('SELECT txn_id FROM txn_categories')}
+        adverts, fixes = [], []
         for r in self.run('SELECT id, sender, body, amount_minor, currency, direction FROM transactions'):
-            if AD_SENDER.search(r['sender'].strip()) or AD.search(r['body']):  # an advert stored before adverts were recognized
-                self.run('INSERT INTO txn_categories (txn_id, category) VALUES (:id, :c) ON CONFLICT (txn_id) DO NOTHING',
-                         id=r['id'], c=IGNORED)  # DO NOTHING: a category you set yourself stays
+            if AD_SENDER.search(r['sender'].strip()) or AD.search(r['body']):
+                if r['id'] not in has_category:
+                    adverts.append(r['id'])
                 continue
             again = parse(r['body'])
             if again and (again['amount_minor'], again['currency'], again['direction']) != (r['amount_minor'], r['currency'], r['direction']):
-                self.run('UPDATE transactions SET amount_minor = :a, currency = :c, direction = :d WHERE id = :id',
-                         a=again['amount_minor'], c=again['currency'], d=again['direction'], id=r['id'])
+                fixes.append((r['id'], again['amount_minor'], again['currency'], again['direction']))
+        for i in range(0, len(adverts), 300):
+            chunk = adverts[i:i + 300]
+            self.run('INSERT INTO txn_categories (txn_id, category) VALUES ' + ', '.join(f'(:id{n}, :c)' for n in range(len(chunk)))
+                     + ' ON CONFLICT (txn_id) DO NOTHING', c=IGNORED, **{f'id{n}': v for n, v in enumerate(chunk)})
+        for i in range(0, len(fixes), 300):  # only after a parser fix, and only the rows it changed
+            chunk = fixes[i:i + 300]
+            # VALUES columns are column1..column4 in both Postgres and SQLite; casts give Postgres the types.
+            self.run('UPDATE transactions SET amount_minor = v.column2, currency = v.column3, direction = v.column4 FROM (VALUES '
+                     + ', '.join(f'(CAST(:i{n} AS BIGINT), CAST(:a{n} AS BIGINT), :c{n}, :d{n})' for n in range(len(chunk)))
+                     + ') AS v WHERE transactions.id = v.column1',
+                     **{k: v for n, f in enumerate(chunk) for k, v in ((f'i{n}', f[0]), (f'a{n}', f[1]), (f'c{n}', f[2]), (f'd{n}', f[3]))})
 
     def run(self, sql, **params):
         if self.pg:
@@ -486,6 +504,20 @@ def read_import(environ):
 
 
 def app(environ, start_response):
+    """Any unexpected error becomes a 500 that says what went wrong (type and message, no stack or data), so the
+    page's error bar can show it; the full trace still goes to the server log."""
+    try:
+        return _app(environ, start_response)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        body = json.dumps({'error': f'{type(e).__name__}: {str(e)[:200]}'}).encode()
+        start_response('500 Internal Server Error', [('Content-Type', 'application/json'), ('Content-Length', str(len(body))),
+                                                    ('Cache-Control', 'no-store')])
+        return [body]
+
+
+def _app(environ, start_response):
     def respond(status, payload, content_type='application/json', headers=()):
         data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode()
         start_response(status, [('Content-Type', content_type), ('Content-Length', str(len(data))),

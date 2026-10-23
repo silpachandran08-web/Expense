@@ -417,6 +417,22 @@ class AppTest(unittest.TestCase):
         self.assertEqual([t['merchant'] for t in s['transactions']], ['PANDA'])
         self.assertEqual([d['outcome'] for d in s['deliveries']][::-1], ['advert, not counted', 'advert, not counted', 'saved'])
 
+    def test_crash_reports_its_reason_and_startup_cleanup_cannot_break_requests(self):
+        original = server.summary
+        server.summary = lambda *a, **k: 1 / 0
+        try:
+            status, out = self.call('GET', '/api/summary')
+        finally:
+            server.summary = original
+        self.assertEqual((status, json.loads(out)['error']), (500, 'ZeroDivisionError: division by zero'))
+        original = server.DB.reread_amounts
+        server.DB.reread_amounts = lambda self: 1 / 0  # the start-up clean-up fails...
+        server.DB._schema_ready.clear()
+        try:
+            self.assertEqual(self.call('GET', '/api/summary')[0], 200)  # ...and the request still works
+        finally:
+            server.DB.reread_amounts = original
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')

@@ -239,9 +239,12 @@ const cache = {
   clear: () => { try { Object.keys(localStorage).filter(k => k.startsWith(CACHE)).forEach(k => localStorage.removeItem(k)); } catch {} },
 };
 // Session expired or signed out elsewhere: back to the login page.
-const api = url => fetch(url).then(r => {
+const api = url => fetch(url).then(async r => {
   if (r.status === 401) { cache.clear(); location.href = '/login'; return new Promise(() => {}); }
-  if (!r.ok) throw new Error(`the server answered ${r.status}`);
+  if (!r.ok) {  // include the server's reason, so a screenshot of the error bar says what broke
+    const why = await r.json().then(j => j.error).catch(() => '');
+    throw new Error(`the server answered ${r.status}${why ? `: ${why}` : ''}`);
+  }
   return r.text();
 });
 const IGNORED = 'Ignored', OWN_TRANSFER = 'Own transfer', NOT_COUNTED = new Set([IGNORED, OWN_TRANSFER]);
