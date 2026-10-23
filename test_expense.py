@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import server
-from parse import categorize, compile_rules, parse
+from parse import categorize, compile_rules, merchant_of, parse
 
 RULES = compile_rules(json.loads((Path(__file__).parent / 'rules.json').read_text(encoding='utf-8')))
 TOKEN = 'test-token-1234567890'
@@ -100,6 +100,30 @@ class ParseTest(unittest.TestCase):
                  'Tree Food Meals Foundatio': 'Food', "McDonald's Olaya": 'Food', "HARDEE'S": 'Food', 'AL TAZAJ': 'Food',
                  'Krispy Kreme': 'Food', 'Al Romansiah': 'Food', 'Karak House': 'Food', 'Fried Chicken Express': 'Food',
                  'مطعم الكبسة': 'Food', 'وجبات سريعة': 'Food', 'Food Market': 'Groceries', 'Steakhouse 21': 'Food'}
+        self.assertEqual({m: categorize(m, '', RULES) for m in cases}, cases)
+
+    def test_everyday_bank_wording_never_picks_a_category(self):
+        # Words every bank SMS uses must not decide a category on their own (the whole SMS is checked when the merchant isn't known).
+        for sms in ('Fund Transfer\nAmount: SAR 500.00\nTo: ZYXW TRADING EST\nVia Internet Banking',
+                    'PoS Purchase\nAmount: SAR 50.00\nCard: *1234 Gold card - mada (Apple Pay)\nAt: QWERTY EST\nTotal incl. VAT\nBalance: SAR 9,000.00',
+                    'Auto debit of SAR 20.00 from A/c XX1234 via Mobile Banking. Fees SAR 0.00. Capital Holdings Co',
+                    'Online Purchase\nBy:1596 ;Visa-Apple Pay\nAmount:57.5 SAR\nAt:ABC Co\nBalance:181573.84 SAR\n22/2/26 16:08',
+                    'شراء عبر نقاط البيع\nبطاقة: ٥٦٧٨\nمبلغ: ٤٥ ريال\nلدى: مؤسسة النور\nالسلام عليكم'):
+            with self.subTest(sms=sms):
+                self.assertEqual(categorize(merchant_of(sms), sms, RULES), 'Uncategorized')
+
+    def test_more_merchants_find_their_category(self):
+        cases = {'BIN DAWOOD': 'Groceries', 'AL SADHAN MARKETS': 'Groceries', 'ملحمة الخير': 'Groceries',
+                 'RED SEA MALL': 'Shopping', 'H&M': 'Shopping', 'ARABIAN OUD': 'Shopping', 'TABBY': 'Shopping',
+                 'MAWQIF PARKING': 'Transport', 'YELO RENT A CAR': 'Transport', 'ARAMCO STATION 12': 'Transport',
+                 'MARRIOTT RIYADH': 'Travel', 'FLYDUBAI': 'Travel', 'فندق الريتز': 'Travel',
+                 'SALAM MOBILE': 'Bills & Utilities', 'فاتورة الكهرباء': 'Bills & Utilities',
+                 'APPLE MUSIC': 'Subscriptions', 'OPENAI CHATGPT': 'Subscriptions',
+                 'SULAIMAN AL HABIB': 'Health', 'FITNESS TIME': 'Health', 'عيادة الأسنان': 'Health',
+                 'VOX CINEMAS': 'Entertainment', 'RIYADH SEASON': 'Entertainment',
+                 'BARBERSHOP 1': 'Personal care', 'مغسلة النظافة': 'Personal care',
+                 'KING SAUD UNIVERSITY': 'Education', 'ABSHER': 'Government & fees', 'EHSAN': 'Charity',
+                 'TAWUNIYA': 'Insurance', 'TAKAFUL': 'Insurance', 'DERAYAH': 'Investments'}
         self.assertEqual({m: categorize(m, '', RULES) for m in cases}, cases)
 
     def test_maestro_card_is_not_food(self):
