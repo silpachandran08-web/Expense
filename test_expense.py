@@ -96,8 +96,15 @@ class ParseTest(unittest.TestCase):
                  'BAQALA AL NOOR': 'Groceries', 'تموينات الخير': 'Groceries', 'MINI MARKET 24': 'Groceries',
                  'AL BAIK RESTAURANTS': 'Food', 'HALF MILLION COFFEE': 'Food', 'DOSE CAFE': 'Food', 'KUDU REST': 'Food',
                  'ABU SAAD BAKERY': 'Food', 'MAESTRO PIZZA': 'Food', 'Fresh Juice Corner': 'Food', 'مطعم البيك': 'Food',
-                 'BARNS COFFEES': 'Food', 'MCDONALDS': 'Food'}
+                 'BARNS COFFEES': 'Food', 'MCDONALDS': 'Food',
+                 'Tree Food Meals Foundatio': 'Food', "McDonald's Olaya": 'Food', "HARDEE'S": 'Food', 'AL TAZAJ': 'Food',
+                 'Krispy Kreme': 'Food', 'Al Romansiah': 'Food', 'Karak House': 'Food', 'Fried Chicken Express': 'Food',
+                 'مطعم الكبسة': 'Food', 'وجبات سريعة': 'Food', 'Food Market': 'Groceries', 'Steakhouse 21': 'Food'}
         self.assertEqual({m: categorize(m, '', RULES) for m in cases}, cases)
+
+    def test_maestro_card_is_not_food(self):
+        sms = 'Purchase on Maestro card XX1234\nAmount: SAR 50.00\nAt: JARIR BOOKSTORE'
+        self.assertEqual(categorize(parse(sms)['merchant'], sms, RULES), 'Shopping')
 
     def test_whole_word_categories(self):
         self.assertEqual(categorize('MOTOROLA STORE', '', RULES), 'Uncategorized')  # not "ola" → Transport
