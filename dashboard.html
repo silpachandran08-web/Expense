@@ -169,6 +169,7 @@
   .txn.leaving { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) { .txn.leaving { transition: opacity .25s; } }
   .fix button, .btn { font-weight: 600; border: 0; border-radius: 10px; min-height: 44px; padding: 8px 16px; background: var(--accent); color: #fff; cursor: pointer; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .fix { margin: 0 0 16px 50px; display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }  /* a one-word 40-letter merchant must wrap, not widen the page */
   .fix label { font-size: 13px; color: var(--text-2); }
   .fix select, .fix input[type=text] { width: 100%; min-height: 44px; margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
@@ -787,6 +788,10 @@ function settings() {
   const deliveries = state.sum.deliveries || [], last = deliveries[0];
   return { title: 'Settings', html:
     installCard() +
+    // The sync app reads the SMS inbox, so SMS that arrived while the phone kept it asleep still come in.
+    card('Phone sync app', 'Android', '<p class="muted">Sends your bank SMS here from the SMS inbox every 15 minutes and on each new SMS, ' +
+      'so nothing is missed while the phone sleeps. Replaces the SMS forwarder app.</p>' +
+      '<a class="btn" href="https://github.com/silpachandran08-web/Expense/releases/download/android-latest/expense-sync.apk">Download Expense Sync</a>') +
     `<section class="card"><a class="ln" href="/import"><span class="nm"><b>Import old SMS</b><small>Add messages from before the phone was connected</small></span>${go1}</a></section>` +
     card('Phone connection', 'last 7 days', `<p class="phone-last">${last ? `Last SMS from your phone: <b>${ago(last.at)}</b> · ${esc(last.outcome)}`
       : '<span class="bad">No SMS from your phone in the last 7 days.</span> Check the forwarder app: the address, the password after "Bearer", and that Samsung isn\'t putting it to sleep.'}</p>` +

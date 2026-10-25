@@ -1,0 +1,52 @@
+# Builds the Expense Sync Android app and publishes it at a fixed download link:
+# https://github.com/silpachandran08-web/Expense/releases/download/android-latest/expense-sync.apk
+name: Android sync app
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      # Signing: with the repository secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD set, every build is
+      # signed with the same key, so a new version installs over the old one. Without them, a key is made for this
+      # build only (the first install works; to update, uninstall the old app first).
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SIGNING_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            PASS="$(openssl rand -hex 16)"
+            echo "::add-mask::$PASS"
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -alias expense-sync -storepass "$PASS" -keypass "$PASS" \
+              -dname "CN=Expense Sync" -validity 20000 -keyalg RSA -keysize 2048
+            echo "SIGNING_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          fi
+          echo "SIGNING_STORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+      - run: gradle -p android assembleRelease --no-daemon
+      - run: cp android/app/build/outputs/apk/release/app-release.apk expense-sync.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: Expense Sync for Android
+          make_latest: true
+          files: expense-sync.apk
+          body: |
+            Install expense-sync.apk on your phone (allow "Install unknown apps" for your browser when asked).
+            It reads your SMS inbox every 15 minutes and on every new SMS, and sends bank SMS to your Expenses website.

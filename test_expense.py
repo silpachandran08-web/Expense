@@ -464,6 +464,14 @@ class AppTest(unittest.TestCase):
         finally:
             server.DB.reread_amounts = original
 
+    def test_phone_sync_app_batch_leaves_a_receipt(self):
+        batch = {'messages': [{'sender': 'AlRajhiBank', 'body': s, 'received_at': '1792002600000'} for s, *_ in SAMPLES[6:9]]}
+        status, out = self.call('POST', '/api/import', json.dumps(batch).encode())  # Bearer token, as the app sends
+        self.assertEqual((status, json.loads(out)['stored']), (200, 3))
+        self.call('POST', '/api/import', json.dumps(batch).encode())             # the next run sends them again: nothing new
+        got = [d['outcome'] for d in json.loads(self.call('GET', '/api/summary')[1])['deliveries']]
+        self.assertEqual(got[:2], ['0 new of 3 checked', '3 new of 3 checked'])
+
     def test_phone_delivery_receipts(self):
         send = lambda body, auth=f'Bearer {TOKEN}': self.call('POST', '/sms', json.dumps({'sender': 'AlRajhiBank', 'body': body}).encode(), auth=auth)
         send(SAMPLES[6][0]); send(SAMPLES[6][0]); send(NOT_TRANSACTIONS[0]); send(SAMPLES[7][0], auth='Bearer wrong-password')

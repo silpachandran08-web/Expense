@@ -618,6 +618,8 @@ def _app(environ, start_response):
                                       'all': [t for t in every if t['currency'] == result['currency']]})
         if path == '/api/import':
             stored = store_many(db, batch)
+            if environ.get('HTTP_AUTHORIZATION', '').startswith('Bearer '):  # the Expense Sync phone app (the import page uses the login cookie)
+                record_delivery(db, 'Phone sync', f'{len(stored)} new of {len(batch)} checked')
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
             stored = store_sms(db, *sms)

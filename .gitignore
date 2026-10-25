@@ -1,3 +1,4 @@
 expense.db
 __pycache__/
 .vercel/
+android/app/*.keystore
