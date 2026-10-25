@@ -38,7 +38,7 @@ object Sync {
 
     fun status(ctx: Context): String = prefs(ctx).getString("status", null) ?: "Not synced yet"
 
-    private fun setStatus(ctx: Context, text: String) =
+    fun setStatus(ctx: Context, text: String) =
         prefs(ctx).edit().putString("status", "${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date())} · $text").apply()
 
     /** Keep the 15-minute sync scheduled (it survives restarts) and run one now. */
@@ -112,6 +112,7 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         Sync.run(applicationContext)
         Result.success()
     } catch (e: IOException) {
+        Sync.setStatus(applicationContext, "Couldn't reach the website (${e.message}) · will retry")
         Result.retry()  // offline or server asleep: WorkManager tries again later
     }
 }
