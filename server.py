@@ -51,6 +51,10 @@ FAILURES_SCHEMA = 'CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, 
 LEARNED_SCHEMAS = ['CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL)',
                    'CREATE TABLE IF NOT EXISTS txn_categories (txn_id BIGINT PRIMARY KEY, category TEXT NOT NULL)']
 MAX_CATEGORY = 40
+# A purchase made for a friend: their part of it (theirs_minor) isn't your spending, and a credit tagged with a
+# friend is them paying you back, not income. settled: paid back outside the bank, or squared up by hand.
+FRIENDS_SCHEMA = 'CREATE TABLE IF NOT EXISTS txn_friends (txn_id BIGINT PRIMARY KEY, friend TEXT NOT NULL, theirs_minor BIGINT NOT NULL, settled INTEGER NOT NULL DEFAULT 0)'
+MAX_FRIEND = 40
 # A receipt per SMS the phone sends (time, sender, what happened; never the text), so you can check delivery.
 DELIVERIES_SCHEMA = 'CREATE TABLE IF NOT EXISTS phone_deliveries (id {id} PRIMARY KEY, at TEXT NOT NULL, sender TEXT NOT NULL, outcome TEXT NOT NULL)'
 DELIVERY_DAYS = 7
@@ -96,7 +100,7 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
-            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA]:
+            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA, FRIENDS_SCHEMA]:
                 self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
             DB._schema_ready.add(url)  # before the re-read: if that fails, requests must still work and not retry it each time
             try:
@@ -227,6 +231,7 @@ def transactions(db, month=None, currency=None):
     by_wording = {k: c for k, c in saved.items() if k.startswith(WORDING)}
     for_merchant = rule_finder({k: c for k, c in saved.items() if not k.startswith(WORDING)})
     overrides = {r['txn_id']: r['category'] for r in db.run('SELECT txn_id, category FROM txn_categories')}
+    friends = {r['txn_id']: r for r in db.run('SELECT txn_id, friend, theirs_minor, settled FROM txn_friends')}
     # id breaks ties: rows with the same timestamp must come back in the same order every time,
     # or the dashboard sees "changed" data on each load and redraws under your finger.
     rows = db.run('SELECT * FROM transactions ORDER BY received_at DESC, id DESC')
@@ -236,11 +241,15 @@ def transactions(db, month=None, currency=None):
         if (month and not r['received_at'].startswith(month)) or (currency and r['currency'] != currency):
             continue
         merchant = merchant_of(r['body'])
+        f = friends.get(r['id'])
+        # A credit from a friend is all theirs (a repayment); a debit is theirs up to its amount.
+        theirs = 0 if not f else r['amount_minor'] if r['direction'] == 'credit' else min(f['theirs_minor'], r['amount_minor'])
         result.append({
             'id': r['id'], 'received_at': r['received_at'], 'sender': r['sender'], 'body': r['body'],
             'amount': r['amount_minor'] / 100, 'currency': r['currency'], 'direction': r['direction'],
             'merchant': merchant,
             'account': account_label(r['sender'], r['body']),
+            'friend': f['friend'] if f else '', 'theirs': theirs / 100, 'settled': bool(f and f['settled']),
             'category': overrides.get(r['id']) or (OWN_TRANSFER if r['id'] in own else None)
                         or (merchant and for_merchant(merchant))
                         or (not merchant and by_wording.get(wording(r['body'])))
@@ -316,6 +325,36 @@ def set_category(db, txn_id, category, whole_merchant):
                'ON CONFLICT (txn_id) DO UPDATE SET category = excluded.category', id=txn_id, c=category)
 
 
+def set_friend(db, txn_id, friend, theirs_minor):
+    """Tag a transaction with a friend and their share of it (for a credit: they paid you back). No name removes the tag.
+    A name typed again in other capitals is the same friend."""
+    found = db.run('SELECT amount_minor, direction FROM transactions WHERE id = :id', id=txn_id)
+    if not found:
+        raise KeyError('no such transaction')
+    if not friend:
+        db.run('DELETE FROM txn_friends WHERE txn_id = :id', id=txn_id)
+        return
+    known = {r['friend'].lower(): r['friend'] for r in db.run('SELECT DISTINCT friend FROM txn_friends')}
+    friend = known.get(friend.lower(), friend)
+    amount, credit = found[0]['amount_minor'], found[0]['direction'] == 'credit'
+    if not credit and not 0 < theirs_minor <= amount:
+        raise ValueError('their share must be more than 0 and at most the amount')
+    db.run('INSERT INTO txn_friends (txn_id, friend, theirs_minor, settled) VALUES (:id, :f, :t, 0) '
+           'ON CONFLICT (txn_id) DO UPDATE SET friend = excluded.friend, theirs_minor = excluded.theirs_minor, settled = 0',
+           id=txn_id, f=friend, t=amount if credit else theirs_minor)
+
+
+def settle_friend(db, friend, currency):
+    """Square up with a friend in one currency: everything so far stops counting toward what they owe."""
+    db.run('UPDATE txn_friends SET settled = 1 WHERE friend = :f AND txn_id IN (SELECT id FROM transactions WHERE currency = :c)',
+           f=friend, c=currency)
+
+
+def mine(t):
+    """Your part of a transaction in minor units: the amount less a friend's share."""
+    return round((t['amount'] - t['theirs']) * 100)
+
+
 # Neon (AWS) region -> the Vercel region in the same city, where the server should run.
 VERCEL_REGION_FOR = {'us-east-1': 'iad1', 'us-east-2': 'cle1', 'us-west-2': 'pdx1', 'eu-central-1': 'fra1',
                      'eu-west-2': 'lhr1', 'ap-southeast-1': 'sin1', 'ap-southeast-2': 'syd1', 'sa-east-1': 'gru1'}
@@ -347,7 +386,7 @@ def search(db, q, currency=None):
     hits = [t for t in transactions(db, currency=currency)
             if all(w in ' '.join((t['body'], t['merchant'], t['category'], t['account'])).lower().translate(ARABIC_DIGITS)
                    for w in words)]
-    spent = sum(t['amount'] for t in hits if t['direction'] == 'debit' and t['category'] not in NOT_COUNTED)
+    spent = sum(mine(t) for t in hits if t['direction'] == 'debit' and t['category'] not in NOT_COUNTED) / 100
     return {'results': hits[:SEARCH_LIMIT], 'count': len(hits), 'spent': round(spent, 2)}
 
 
@@ -362,13 +401,15 @@ def summary(db, month=None, currency=None, every=None):
     for t in rows:
         totals = months[t['received_at'][:7]]  # the month is listed even if everything in it is ignored
         if t['category'] not in NOT_COUNTED:
-            totals['spent' if t['direction'] == 'debit' else 'received'] += round(t['amount'] * 100)
+            totals['spent' if t['direction'] == 'debit' else 'received'] += mine(t)
     month = month or max(months, default=datetime.now(timezone.utc).strftime('%Y-%m'))
 
     by_category, by_merchant, by_account = defaultdict(int), defaultdict(int), defaultdict(int)
     for t in rows:
         if t['received_at'].startswith(month) and t['direction'] == 'debit' and t['category'] not in NOT_COUNTED:
-            minor = round(t['amount'] * 100)
+            minor = mine(t)
+            if not minor:  # bought entirely for a friend
+                continue
             by_category[t['category']] += minor
             by_merchant[t['merchant'] or '(unknown)'] += minor
             by_account[t['account']] += minor
@@ -392,6 +433,14 @@ def summary(db, month=None, currency=None, every=None):
         'deliveries': db.run('SELECT d.id, d.at, d.sender, d.outcome, s.body FROM phone_deliveries d '
                              'LEFT JOIN skipped_sms s ON s.delivery_id = d.id ORDER BY d.id DESC LIMIT 20'),
     }
+
+
+def refreshed(db, query, every=None):
+    """The updated dashboard after a change, plus every transaction in its currency, so the page
+    recomputes all its analytics from one reply."""
+    every = transactions(db) if every is None else every
+    result = summary(db, query.get('month'), query.get('currency'), every)
+    return {'summary': result, 'all': [t for t in every if t['currency'] == result['currency']]}
 
 
 def _token():
@@ -495,6 +544,16 @@ def read_category(environ):
     return int(msg['id']), category, bool(msg.get('whole_merchant', True))
 
 
+def read_friend(environ):
+    """{"id": 12, "friend": "Ali", "theirs": "50.00"} from a transaction; an empty friend removes the tag."""
+    msg = read_json(environ, MAX_BODY)
+    friend = ' '.join(str(msg.get('friend') or '').split())
+    if len(friend) > MAX_FRIEND:
+        raise ValueError(f'a name is at most {MAX_FRIEND} characters')
+    theirs = int(Decimal(str(msg.get('theirs') or 0).replace(',', '').strip()) * 100)
+    return int(msg['id']), friend, theirs
+
+
 def read_import(environ):
     """A batch from the import page: JSON {"messages": [{sender, body, received_at}, ...]}."""
     messages = read_json(environ, MAX_IMPORT_BODY)['messages']
@@ -588,6 +647,16 @@ def _app(environ, start_response):
             correction = read_category(environ)
         except (ValueError, KeyError, TypeError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif (method, path) == ('POST', '/api/friend'):
+        try:
+            tag = read_friend(environ)
+        except (ValueError, KeyError, TypeError, ArithmeticError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif (method, path) == ('POST', '/api/friend/settle'):
+        try:
+            square = str(read_json(environ, MAX_BODY)['friend'])
+        except (ValueError, KeyError, TypeError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif (method, path) not in {('GET', '/api/summary'), ('GET', '/api/transactions'), ('GET', '/api/health'), ('GET', '/api/search'), ('GET', '/api/latest')}:
         return respond('404 Not Found', {'error': 'not found'})
 
@@ -612,10 +681,18 @@ def _app(environ, start_response):
             # dashboard, so saving is one request and one pass over the data instead of three.
             every = transactions(db)
             now = next(t['category'] for t in every if t['id'] == correction[0])
-            result = summary(db, query.get('month'), query.get('currency'), every)
-            # Every transaction in that currency too, so the dashboard recomputes all its analytics from this reply.
-            return respond('200 OK', {'saved': True, 'category': now, 'summary': result,
-                                      'all': [t for t in every if t['currency'] == result['currency']]})
+            return respond('200 OK', {'saved': True, 'category': now, **refreshed(db, query, every)})
+        if path == '/api/friend':
+            try:
+                set_friend(db, *tag)
+            except KeyError:
+                return respond('404 Not Found', {'error': 'no such transaction'})
+            except ValueError as e:
+                return respond('400 Bad Request', {'error': f'bad request: {e}'})
+            return respond('200 OK', {'saved': True, **refreshed(db, query)})
+        if path == '/api/friend/settle':
+            settle_friend(db, square, query.get('currency') or 'SAR')
+            return respond('200 OK', {'saved': True, **refreshed(db, query)})
         if path == '/api/import':
             stored = store_many(db, batch)
             if environ.get('HTTP_AUTHORIZATION', '').startswith('Bearer '):  # the Expense Sync phone app (the import page uses the login cookie)

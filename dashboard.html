@@ -174,6 +174,10 @@
   .fix label { font-size: 13px; color: var(--text-2); }
   .fix select, .fix input[type=text] { width: 100%; min-height: 44px; margin-top: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
   .fix .check { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); min-height: 44px; }
+  .txn .friend-tag { color: var(--accent); }
+  .fix.friend { border-top: 1px solid var(--line); padding-top: 12px; }
+  .fix .link { background: none; color: var(--accent); padding: 8px 0; }
+  .fix .actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   .fix .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
   .txn.ignored .who b, .txn.ignored .amount { color: var(--muted); text-decoration: line-through; }
   .link { border: 0; background: none; min-height: 44px; padding: 8px 0; color: var(--accent); font-weight: 600; cursor: pointer; }
@@ -224,6 +228,7 @@
 </main>
 <nav class="tabbar" aria-label="Main" id="tabs"></nav>
 <div class="toast" id="toast" role="status" hidden></div>
+<datalist id="friend-names"></datalist>
 <script>
 const ICONS = { 'Food': '🍔', 'Groceries': '🛒', 'Shopping': '🛍️', 'Transport': '🚗', 'Travel': '✈️', 'Bills & Utilities': '💡',
   'Subscriptions': '📺', 'Health': '💊', 'Entertainment': '🎬', 'Rent & EMI': '🏠', 'Investments': '📈', 'Insurance': '🛡️',
@@ -287,12 +292,14 @@ const median = a => { const s = [...a].sort((x, y) => x - y), h = s.length >> 1;
 
 /* ---------- Finance definitions ---------- */
 // _s: what a transaction adds to Spent (refunds in spending categories subtract), _r: what it adds to Received.
+// Both use _mine, your part: a friend's share of a purchase, or a friend paying you back, is neither.
 function prep(list) {
   for (const t of list) {
     t._c = Math.round(t.amount * 100); t._d = t.received_at.slice(0, 10); t._m = t._d.slice(0, 7);
+    t._t = Math.round((t.theirs || 0) * 100); t._mine = t._c - t._t;
     t._n = !NOT_COUNTED.has(t.category);
-    t._s = !t._n ? 0 : t.direction === 'debit' ? t._c : INCOME.has(t.category) ? 0 : -t._c;
-    t._r = t._n && t.direction === 'credit' && INCOME.has(t.category) ? t._c : 0;
+    t._s = !t._n ? 0 : t.direction === 'debit' ? t._mine : INCOME.has(t.category) ? 0 : -t._mine;
+    t._r = t._n && t.direction === 'credit' && INCOME.has(t.category) ? t._mine : 0;
   }
   return list;
 }
@@ -409,7 +416,7 @@ const TABS = [
   ['cards', 'Cards', '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'],
   ['activity', 'Activity', '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
 ];
-const PARENT = { category: 'categories', merchant: 'merchants', card: 'cards' };  // everything else returns to Overview
+const PARENT = { category: 'categories', merchant: 'merchants', card: 'cards', friend: 'friends' };  // everything else returns to Overview
 const DIM = { category: { path: 'category', param: 'cat', label: 'Category' }, merchant: { path: 'merchant', param: 'mer', label: 'Merchant' }, account: { path: 'card', param: 'acc', label: 'Card' } };
 const merKey = m => m === '' ? '_unknown' : m;
 const merName = m => m || 'Unknown merchant';
@@ -465,6 +472,7 @@ let pending = null, loadSeq = 0;  // pending: fresh data that arrived while a tr
 function setData(sum, all) {
   state.sum = sum; state.currency = sum.currency; state.all = prep(all);
   state.earliest = state.all.reduce((a, t) => t._d < a ? t._d : a, today());
+  $('friend-names').innerHTML = [...new Set(state.all.map(t => t.friend).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('');
 }
 // Keep the screen current without a manual refresh: ask "anything new?" when the app comes back to the
 // foreground and every 30 s while it's on screen (never in the background), and reload only when there is.
@@ -552,7 +560,7 @@ function row(t, withDate) {
   const options = (state.sum?.categories || []).map(c => `<option ${c === t.category ? 'selected' : ''}>${esc(c)}</option>`).join('');
   return `<details class="txn${ignored ? ' ignored' : ''}" data-id="${t.id}" data-merchant="${esc(t.merchant)}" data-key="${esc(ruleKey(t))}" ${unsure ? 'data-unsure' : ''}>` +
     `<summary><span class="emoji" aria-hidden="true">${t.category === OWN_TRANSFER ? '🔁' : ignored ? '🚫' : icon(t.category)}</span>` +
-    `<span class="who"><b>${esc(merName(t.merchant))}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? `${t.category === OWN_TRANSFER ? 'Own transfer' : 'Ignored'}, not counted` : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small><small>💳 ${esc(t.account)}</small></span>` +
+    `<span class="who"><b>${esc(merName(t.merchant))}</b><small>${unsure ? '<span class="fixme">Needs a category</span>' : ignored ? `${t.category === OWN_TRANSFER ? 'Own transfer' : 'Ignored'}, not counted` : `${esc(t.category)} <span class="pen" aria-hidden="true">✎</span>`} · ${withDate ? dayLabel(t.received_at.slice(0, 10)) + ', ' : ''}${t.received_at.slice(11, 16)}</small><small>💳 ${esc(t.account)}</small>${t.friend ? `<small class="friend-tag">👥 ${esc(friendNote(t))}</small>` : ''}</span>` +
     `<span class="amount ${t.direction}">${t.direction === 'debit' ? '−' : '+'}${fmt(t._c)}</span></summary>` +
     `<pre>${esc(t.body)}</pre>` +
     `<form class="fix"><label>${unsure ? 'Category' : 'Wrong category? Choose the right one'}<select name="category">${unsure ? '<option value="" selected disabled>Choose…</option>' : ''}${options}` +
@@ -560,7 +568,48 @@ function row(t, withDate) {
     `<option value="${IGNORED}" ${t.category === IGNORED ? 'selected' : ''}>🚫 Ignore (don't count)</option></select></label>` +
     `<label hidden>New category name<input type="text" name="custom" maxlength="40" autocomplete="off"></label>` +
     `<label class="check"><input type="checkbox" name="all" checked>${t.merchant ? `Apply to all from ${esc(t.merchant)}` : 'Apply to all similar messages'}, including future SMS</label>` +
-    `<div><button>Save</button></div></form></details>`;
+    `<div><button>Save</button></div></form>${friendForm(t)}</details>`;
+}
+const friendNote = t => `${t.friend} · ${t.direction === 'credit' ? 'paid you back'
+  : t._t >= t._c ? 'all theirs' : `they owe ${fmt(t._t)}, yours ${fmt(t._mine)}`}${t.settled ? ' · settled' : ''}`;
+// "Bought for a friend": who, and how much of it is theirs. On a credit: a friend paying you back.
+function friendForm(t) {
+  const debit = t.direction === 'debit', split = !t.friend ? '2' : t._t >= t._c ? 'all' : 'custom';
+  return `<form class="fix friend" data-id="${t.id}" data-amount="${t._c}">` +
+    `<label>${debit ? 'Bought for a friend?' : 'Money back from a friend?'}<input type="text" name="friend" list="friend-names" maxlength="40" autocomplete="off" placeholder="Friend’s name" value="${esc(t.friend)}"></label>` +
+    (debit ? `<label>Whose is it<select name="split">` +
+      [['2', 'Shared: split 2 ways, they owe half'], ['3', 'Split 3 ways, they owe 2/3'], ['4', 'Split 4 ways, they owe 3/4'], ['all', 'All theirs'], ['custom', 'Their share: type it']]
+        .map(([v, label]) => `<option value="${v}" ${v === split ? 'selected' : ''}>${label}</option>`).join('') + '</select></label>' +
+      `<label ${split === 'custom' ? '' : 'hidden'}>Their share<input type="text" name="theirs" inputmode="decimal" pattern="[0-9.,]+" value="${split === 'custom' ? (t._t / 100).toFixed(2) : ''}"></label>` : '') +
+    `<div class="actions"><button>${t.friend ? 'Update' : 'Save'}</button>${t.friend ? '<button type="button" class="link" data-unfriend>Remove tag</button>' : ''}</div></form>`;
+}
+// What each friend owes you in this currency: their unsettled shares, less what they paid back. Negative: you owe them.
+function friendBalances() {
+  const m = new Map();
+  for (const t of state.all) {
+    if (!t.friend) continue;
+    const e = m.get(t.friend) || { name: t.friend, owed: 0, list: [] };
+    if (!t.settled) e.owed += t.direction === 'debit' ? t._t : -t._c;
+    e.list.push(t); m.set(t.friend, e);
+  }
+  return [...m.values()].sort((a, b) => b.owed - a.owed || a.name.localeCompare(b.name));
+}
+function friendsPage(rt) {
+  const all = friendBalances();
+  if (!rt.arg) {
+    const total = all.reduce((a, e) => a + Math.max(0, e.owed), 0);
+    return { title: 'Friends', sub: 'What friends owe you', html:
+      `<section class="card"><div class="big"><span class="muted">Owed to you</span><b>${money(total)}</b></div></section>` +
+      card('Friends', esc(state.currency), all.map(e => rk({ href: `#/friend/${enc(e.name)}`, icon: '👥', name: e.name,
+        sub: `${plural(e.list.length, 'transaction')}${e.owed < 0 ? ' · you owe them' : e.owed ? '' : ' · all square'}`, value: e.owed })).join('')
+        || empty('No friends tagged yet', 'Open a transaction and fill in “Bought for a friend?”.')) };
+  }
+  const e = all.find(f => f.name === rt.arg);
+  if (!e) return { title: 'Friend', html: `<section class="card">${empty('Nothing tagged with this name', `<a href="#/friends">All friends</a>`)}</section>` };
+  return { title: e.name, sub: 'Friend', html:
+    `<section class="card"><div class="big"><span class="muted">${e.owed < 0 ? 'You owe them' : 'They owe you'}</span><b>${money(Math.abs(e.owed))}</b></div>` +
+    (e.owed ? `<p class="muted">Paid back in cash, or squared up another way?</p><button type="button" class="btn" data-settle="${esc(e.name)}">Mark settled</button>` : '<p class="muted">All square.</p>') + '</section>' +
+    `<section class="card"><h2>Transactions<span>tap to change</span></h2>${e.list.map(t => row(t, true)).join('')}</section>` };
 }
 // Transactions grouped by day, each day header linking to that day and showing what it spent.
 function dayGroups(list, linkDays = true) {
@@ -621,7 +670,8 @@ function overview(rt, P, X) {
       ln(`#/income?${q}`, 'Income', 'What came in', fmt(T.received)) +
       ln(`#/recurring?${q}`, 'Recurring payments', `${rec.length} active`, `${fmt(rec.reduce((a, r) => a + r.monthly, 0))}/mo`) +
       ln(`#/large?${q}`, 'Large transactions', 'Far above the usual', String(large.length)) +
-      ln(`#/cash?${q}`, 'Cash withdrawals', 'ATM and cash', fmt(cash))) };
+      ln(`#/cash?${q}`, 'Cash withdrawals', 'ATM and cash', fmt(cash)) +
+      ln('#/friends', 'Friends', 'Bought for friends, paid back', fmt(friendBalances().reduce((a, e) => a + Math.max(0, e.owed), 0)))) };
 }
 function catRows(groups, total, X, P, f = {}) {
   const prev = new Map(spendGroups(X.prev.filter(matches(f)), t => t.category).map(e => [e.key, e]));
@@ -812,7 +862,7 @@ function renderResults() {
 const PAGES = { overview, categories, merchants, cards, activity,
   category: (r, P, X) => drill(r, P, X, 'category'), merchant: (r, P, X) => drill(r, P, X, 'merchant'), card: (r, P, X) => drill(r, P, X, 'card'),
   month: (r, P, X) => drill(r, P, X, 'month'), day: (r, P, X) => drill(r, P, X, 'day'), cash: (r, P, X) => drill(r, P, X, 'cash'),
-  trends, income, recurring: recurringPage, large: largePage, search: searchPage, settings };
+  trends, income, recurring: recurringPage, large: largePage, search: searchPage, settings, friends: friendsPage, friend: friendsPage };
 const TITLES = Object.fromEntries(TABS.map(([k, label]) => [k, label]));
 
 function render() {
@@ -909,9 +959,10 @@ document.addEventListener('click', e => {
 // Listen on the document so rows in every list work.
 document.addEventListener('change', e => {
   if (e.target.name === 'category') e.target.form.querySelector('[name=custom]').parentElement.hidden = e.target.value !== '__new';
+  if (e.target.name === 'split') e.target.form.theirs.parentElement.hidden = e.target.value !== 'custom';
 });
 document.addEventListener('submit', async e => {
-  if (!e.target.matches('form.fix')) return;  // leave the sign-out form alone
+  if (!e.target.matches('form.fix:not(.friend)')) return;  // leave the sign-out and friend forms alone
   e.preventDefault();
   const form = e.target, row = form.closest('details'), f = filterOf(parseRoute());
   const chosen = form.category.value === '__new' ? form.custom.value.trim() : form.category.value;
@@ -944,12 +995,7 @@ document.addEventListener('submit', async e => {
   }
   if (wasReviewing) await new Promise(ok => setTimeout(ok, 260));  // let the next one open first, so it stays open below
   const open = document.querySelector('details.txn[open]')?.dataset.id;  // keep the next one open across the redraw
-  pending = null;
-  cache.set('s|' + reply.summary.currency, JSON.stringify(reply.summary)); cache.set('t|' + reply.summary.currency, JSON.stringify(reply.all));
-  setData(reply.summary, reply.all);
-  render();
-  if (state.search) runSearch();  // refresh the results with the new category
-  if (open) document.querySelector(`details.txn[data-id="${open}"]`)?.setAttribute('open', '');
+  applyReply(reply, open);
   if (reply.category !== chosen) {  // saved, but something stronger still decides this one: say so instead of pretending
     toast(`Saved, but this one still shows as ${reply.category}. Open it again and untick "apply to all" to change just this one.`);
     return;
@@ -958,6 +1004,53 @@ document.addEventListener('submit', async e => {
   toast(NOT_COUNTED.has(chosen)
     ? (all ? `${done}, with ${row.dataset.merchant || 'similar messages'} from now on too.` : `${done}. It no longer counts.`)
     : (all ? `Saved. ${row.dataset.merchant || 'Similar messages'} ${row.dataset.merchant ? 'is' : 'are'} now ${chosen}, including future SMS.` : `Saved as ${chosen}.`));
+});
+
+// Redraw from a save's reply (it carries the whole updated dashboard), keeping an open row open.
+function applyReply(reply, open) {
+  pending = null;
+  cache.set('s|' + reply.summary.currency, JSON.stringify(reply.summary)); cache.set('t|' + reply.summary.currency, JSON.stringify(reply.all));
+  setData(reply.summary, reply.all);
+  render();
+  if (state.search) runSearch();  // refresh the results with the change
+  if (open) document.querySelector(`details.txn[data-id="${open}"]`)?.setAttribute('open', '');
+}
+async function postAndRedraw(path, body, open) {
+  try {
+    const r = await fetch(`${path}?currency=${enc(state.currency)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.status === 401) { location.href = '/login'; return false; }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+    applyReply(await r.json(), open);
+    return true;
+  } catch (err) {
+    toast(`Could not save: ${err.message}`);
+    return false;
+  }
+}
+async function saveFriend(form, remove) {
+  const name = remove ? '' : form.friend.value.trim(), amount = Number(form.dataset.amount), split = form.split?.value;
+  if (!remove && !name) { form.friend.focus(); return; }
+  const theirs = !form.split ? 0 : split === 'all' ? amount / 100 : split === 'custom' ? form.theirs.value
+    : Math.round(amount * (Number(split) - 1) / Number(split)) / 100;
+  if (split === 'custom' && !remove && !form.theirs.value.trim()) { form.theirs.focus(); return; }
+  form.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  const ok = await postAndRedraw('/api/friend', { id: Number(form.dataset.id), friend: name, theirs }, form.dataset.id);
+  if (ok) toast(remove ? 'Friend tag removed.' : `Tagged with ${name}.`);
+  else form.querySelectorAll('button').forEach(b => { b.disabled = false; });
+}
+document.addEventListener('submit', e => {
+  if (!e.target.matches('form.friend')) return;
+  e.preventDefault();
+  saveFriend(e.target, false);
+});
+document.addEventListener('click', async e => {
+  if (e.target.closest('[data-unfriend]')) { saveFriend(e.target.closest('form'), true); return; }
+  const settle = e.target.closest('[data-settle]');
+  if (settle) {
+    settle.disabled = true;
+    if (await postAndRedraw('/api/friend/settle', { friend: settle.dataset.settle })) toast(`Settled with ${settle.dataset.settle}.`);
+    else settle.disabled = false;
+  }
 });
 
 history.replaceState({ d: 0 }, '');

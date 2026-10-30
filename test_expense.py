@@ -236,6 +236,32 @@ class StoreMixin:
         self.assertEqual(own(), [500.0])
         self.assertEqual(server.summary(db)['months'][0]['spent'], 2300.0)
 
+    def test_purchases_for_friends_count_only_your_share(self):
+        db = self.db
+        def store(body, at):
+            server.store_sms(db, 'AlRajhi', body, f'2026-10-{at}:00+03:00')
+            return next(t['id'] for t in server.transactions(db) if t['body'] == body)
+        dinner = store('PoS Purchase\nAmount: SAR 100.00\nAt: HUNGERSTATION', '05T20:00')
+        gift = store('PoS Purchase\nAmount: SAR 60.00\nAt: JARIR', '06T12:00')
+        store('PoS Purchase\nAmount: SAR 40.00\nAt: PANDA', '06T13:00')
+        back = store('Incoming Transfer\nAmount: SAR 50.00\nFrom: ALI', '07T09:00')
+        server.set_friend(db, dinner, 'Ali', 5000)   # shared, half each
+        server.set_friend(db, gift, 'ali', 6000)     # all his; the same friend whatever the capitals
+        server.set_friend(db, back, 'Ali', 0)        # a credit from a friend is him paying back, all of it
+        s = server.summary(db)
+        self.assertEqual((s['months'][0]['spent'], s['months'][0]['received']), (90.0, 0.0))  # 50 + 0 + 40; the repayment isn't income
+        self.assertEqual(s['by_category'], {'Food': 50.0, 'Groceries': 40.0})
+        owed = lambda: sum((t['theirs'] if t['direction'] == 'debit' else -t['theirs'])
+                           for t in server.transactions(db) if t['friend'] == 'Ali' and not t['settled'])
+        self.assertEqual(owed(), 60.0)  # 50 + 60 - 50 paid back
+        with self.assertRaises(ValueError):
+            server.set_friend(db, dinner, 'Ali', 10001)  # more than the purchase
+        server.settle_friend(db, 'Ali', 'SAR')
+        self.assertEqual(owed(), 0)
+        self.assertEqual(server.summary(db)['months'][0]['spent'], 90.0)  # settling doesn't change your spending
+        server.set_friend(db, dinner, '', 0)
+        self.assertEqual(server.summary(db)['months'][0]['spent'], 140.0)
+
     def test_corrections_follow_the_merchant(self):
         db = self.db
         server.store_sms(db, 'B', 'PoS Purchase\nAmount: SAR 30.00\nAt: ABU SAAD TRADING\nRef 1', '2026-10-01T09:00:00+03:00')
@@ -292,7 +318,7 @@ class PostgresStoreTest(StoreMixin, unittest.TestCase):
     def setUp(self):
         server.DB._schema_ready.discard(self.url)
         cleanup = server.DB(self.url)
-        cleanup.run('DROP TABLE IF EXISTS transactions, merchant_categories, txn_categories')
+        cleanup.run('DROP TABLE IF EXISTS transactions, merchant_categories, txn_categories, txn_friends')
         cleanup.close()
         server.DB._schema_ready.discard(self.url)
         super().setUp()
@@ -399,6 +425,22 @@ class AppTest(unittest.TestCase):
         form = urlencode({'id': txn['id'], 'category': 'Food'}).encode()  # cross-site form posts are refused
         self.assertEqual(self.call('POST', '/api/category', form, content_type='application/x-www-form-urlencoded')[0], 400)
         self.assertEqual(self.call('POST', '/api/category', b'{}', auth='')[0], 401)
+
+    def test_friend_endpoints(self):
+        self.call('POST', '/sms', json.dumps({'sender': 'B', 'body': 'SAR 80.00 paid to ABU SAAD BAKERY'}).encode())
+        txn = json.loads(self.call('GET', '/api/transactions')[1])[0]
+        tag = lambda **kw: self.call('POST', '/api/friend', json.dumps({'id': txn['id'], **kw}).encode(), query='currency=SAR')
+        status, out = tag(friend='  Sara  ', theirs='40.00')
+        reply = json.loads(out)
+        self.assertEqual((status, reply['all'][0]['friend'], reply['all'][0]['theirs']), (200, 'Sara', 40.0))
+        self.assertEqual(reply['summary']['months'][0]['spent'], 40.0)
+        self.assertEqual(tag(friend='Sara', theirs='80.01')[0], 400)
+        self.assertEqual(tag(friend='x' * 41, theirs='1')[0], 400)
+        settled = json.loads(self.call('POST', '/api/friend/settle', b'{"friend": "Sara"}', query='currency=SAR')[1])
+        self.assertTrue(settled['all'][0]['settled'])
+        self.assertEqual(json.loads(tag(friend='')[1])['all'][0]['friend'], '')
+        self.assertEqual(self.call('POST', '/api/friend', b'{"id": 424242, "friend": "Sara", "theirs": 1}')[0], 404)
+        self.assertEqual(self.call('POST', '/api/friend', b'{}', auth='')[0], 401)
 
     def test_search_all_months(self):
         for body, at in ((SAMPLES[6][0], '2026-08-02T10:00:00+03:00'), (SAMPLES[7][0], '2026-10-05T10:00:00+03:00'),
