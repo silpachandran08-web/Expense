@@ -131,6 +131,19 @@
   .bars .m { height: 18px; font-size: 12px; line-height: 18px; text-align: center; color: var(--muted); overflow: hidden; }
   .bars .sel .m { color: var(--text); font-weight: 600; }
   .bars.days { gap: 2px; }
+  .day-nav { display: flex; align-items: center; gap: 8px; }
+  .day-nav input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
+  .day-nav button { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 20px; cursor: pointer; }
+  .day-nav button:disabled { opacity: .35; cursor: default; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cal .wd { font-size: 11px; color: var(--muted); text-align: center; }
+  .cal a { min-height: 46px; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; color: var(--text);
+    background: color-mix(in srgb, var(--bar) calc(var(--i) * 85%), var(--surface-2)); }
+  .cal a.hi { color: #fff; }
+  .cal a.today { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cal a.future { opacity: .4; pointer-events: none; }
+  .cal .n { font-size: 12px; font-weight: 600; }
+  .cal .v { font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; white-space: nowrap; }
   .bars.days .col { max-width: none; }
   .legend { display: flex; gap: 16px; margin: 0 0 8px; font-size: 12px; color: var(--text-2); }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
@@ -333,6 +346,22 @@ const deltaPct = (cur, prev) => !prev || prev.spent <= 0 ? null : prev.n < 5 ? N
 const deltaHtml = d => d === null ? '<span class="muted">new</span>' : Number.isNaN(d) ? '<span class="muted" title="Too little data to compare">–</span>'
   : `<span class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}%</span>`;
 const byMonth = list => { const m = new Map(); for (const t of list) { if (!t._n) continue; const e = m.get(t._m) || { spent: 0, received: 0 }; e.spent += t._s; e.received += t._r; m.set(t._m, e); } return m; };
+
+// Spent per day (YYYY-MM-DD -> minor units), counted transactions only.
+const byDay = list => { const m = new Map(); for (const t of list) if (t._n) m.set(t._d, (m.get(t._d) || 0) + t._s); return m; };
+// Your usual day before `d`: average spend per day over the 30 days before it (fewer if the data starts later).
+function usualDay(d) {
+  const n = Math.min(30, dayNum(d) - dayNum(state.earliest)), from = fromNum(dayNum(d) - n);
+  if (n < 7) return 0;  // too little history to call anything usual
+  let s = 0; for (const t of state.all) if (t._n && t._d >= from && t._d < d) s += t._s;
+  return Math.round(s / n);
+}
+const vsUsual = (v, d) => {
+  const u = usualDay(d);
+  if (u <= 0) return '';
+  const p = Math.round((v - u) / u * 100);
+  return `${p > 0 ? '▲' : p < 0 ? '▼' : '='} ${Math.abs(p)}% vs your average day (${fmt(u)})`;
+};
 
 const RANGES = { '3m': 3, '6m': 6, '12m': 12 };
 // The period the screen covers, from the hash (untrusted: anything unexpected falls back to this month).
@@ -663,7 +692,10 @@ function overview(rt, P, X) {
   const cash = totals(X.cur.filter(t => t.category === 'Cash')).spent;
   const q = P.qs, share = v => T.spent > 0 ? v / T.spent : 0;
   const ln = (href, name, sub, v) => `<a class="ln" href="${href}"><span class="nm"><b>${name}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="v">${v}</span>${go1}</a>`;
-  return { html: chips(P) + hero +
+  const td = today(), todayList = state.all.filter(t => t._d === td), Td = totals(todayList);
+  const todayCard = P.start <= td && td <= P.end ? `<section class="card"><a class="ln" href="#/day/${td}"><span class="nm"><b>Today · ${money(Td.spent)}</b>` +
+    `<small>${plural(Td.n || Td.count, 'transaction')}${vsUsual(Td.spent, td) ? ' · ' + vsUsual(Td.spent, td) : ''}</small></span>${go1}</a></section>` : '';
+  return { html: chips(P) + hero + todayCard +
     (review ? `<a class="banner" href="#/activity?${q}"><span>Needs a category · ${review}</span>${go1}</a>` : '') +
     card('Where it went', esc(state.currency), catRows(cats.slice(0, 4), T.spent, X, P) || empty('No spending in this period'), cats.length ? `#/categories?${q}` : '') +
     card('Spent, last 12 months', 'tap a month', monthBars(state.all, P.endMonth, P), `#/trends?${q}`) +
@@ -674,6 +706,7 @@ function overview(rt, P, X) {
       ln(`#/recurring?${q}`, 'Recurring payments', `${rec.length} active`, `${fmt(rec.reduce((a, r) => a + r.monthly, 0))}/mo`) +
       ln(`#/large?${q}`, 'Large transactions', 'Far above the usual', String(large.length)) +
       ln(`#/cash?${q}`, 'Cash withdrawals', 'ATM and cash', fmt(cash)) +
+      ln(`#/daily?m=${P.endMonth}`, 'Daily spending', 'Calendar, day by day', `${fmt(Math.round(T.spent / Math.max(1, P.days)))}/day`) +
       ln('#/friends', 'Friends', 'Bought for friends, paid back', fmt(friendBalances().reduce((a, e) => a + Math.max(0, e.owed), 0)))) };
 }
 function catRows(groups, total, X, P, f = {}) {
@@ -717,11 +750,14 @@ function drill(rt, P, X, kind) {
   const title = kind === 'cash' ? 'Cash withdrawals' : kind === 'category' ? f.category : kind === 'merchant' ? merName(f.merchant) : kind === 'card' ? f.account : kind === 'month' ? monthName(P.m) : P.label;
   const sub = [{ category: 'Category', cash: 'Cash', merchant: 'Merchant', card: 'Card', month: 'Month', day: 'Day' }[kind], ...extras, kind === 'day' ? '' : periodText(P)].filter(Boolean).join(' · ');
   const stat = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-  let html = `<section class="card"><div class="big"><span class="muted">Spent</span><b>${money(T.spent)}</b>${kind === 'day' ? '' : `<span class="pill">${d === null ? 'new' : `${deltaHtml(d)} vs ${esc(P.prevLabel)}`}</span>`}</div><dl class="stats">` +
+  const dayNav = kind !== 'day' ? '' : `<div class="day-nav"><button type="button" aria-label="Previous day" data-go="#/day/${fromNum(dayNum(P.start) - 1)}">‹</button>` +
+    `<input type="date" id="day-pick" aria-label="Go to a date" value="${P.start}" max="${today()}">` +
+    `<button type="button" aria-label="Next day" ${P.start < today() ? `data-go="#/day/${fromNum(dayNum(P.start) + 1)}"` : 'disabled'}>›</button></div>`;
+  let html = dayNav + `<section class="card"><div class="big"><span class="muted">Spent</span><b>${money(T.spent)}</b>${kind === 'day' ? (vsUsual(T.spent, P.start) ? `<span class="pill">${vsUsual(T.spent, P.start)}</span>` : '') : `<span class="pill">${d === null ? 'new' : `${deltaHtml(d)} vs ${esc(P.prevLabel)}`}</span>`}</div><dl class="stats">` +
     (Object.keys(f).length ? stat('Share of period spend', all > 0 ? Math.round(T.spent / all * 100) + '%' : '–') : stat('Received', fmt(T.received))) +
     stat('Transactions', T.n || T.count) + stat('Avg per purchase', fmt(T.n ? Math.round(Math.max(0, T.spent) / T.n) : 0)) +
     (T.received && Object.keys(f).length ? stat('Received', fmt(T.received)) : '') + (T.refunds ? stat('Refunds', '−' + fmt(T.refunds)) : '') + '</dl>' +
-    (kind === 'day' ? '' : monthBars(state.all.filter(m), P.endMonth, P, { mini: true, href: false })) + '</section>';
+    (kind === 'day' ? `<a class="more" href="#/daily?m=${P.endMonth}">Month calendar</a>` : monthBars(state.all.filter(m), P.endMonth, P, { mini: true, href: false })) + '</section>';
   if (kind === 'merchant') {  // how often you go there, across all time
     const visits = state.all.filter(t => m(t) && t._s > 0).sort((a, b) => a._d < b._d ? -1 : 1);
     const gaps = visits.slice(1).map((t, i) => dayNum(t._d) - dayNum(visits[i]._d));
@@ -735,7 +771,7 @@ function drill(rt, P, X, kind) {
     html += card('By day', 'tap a day', `<div class="bars days">${days.map((x, i) => `<a href="#/day/${x}" aria-label="${esc(longDay(x))}: ${money(per.get(x) || 0)}" title="${esc(shortDay(x))}: ${fmt(per.get(x) || 0)}">` +
       `<span class="area"><span class="col" style="height:${(Math.max(0, per.get(x) || 0) / max * 100).toFixed(1)}%"></span></span><span class="m" aria-hidden="true">${(i + 1) % 7 === 1 ? i + 1 : ''}</span></a>`).join('')}</div>`);
   }
-  const order = { category: ['merchant', 'account'], cash: ['merchant', 'account'], merchant: ['category', 'account'], card: ['category', 'merchant'], month: ['category'], day: [] }[kind];
+  const order = { category: ['merchant', 'account'], cash: ['merchant', 'account'], merchant: ['category', 'account'], card: ['category', 'merchant'], month: ['category'], day: ['category'] }[kind];
   for (const dim of order.filter(k => !(k in f))) {
     const groups = spendGroups(cur, t => t[dim]);
     if (groups.length < 2) continue;  // one row would only repeat the total above
@@ -745,6 +781,36 @@ function drill(rt, P, X, kind) {
         value: e.spent, pct: T.spent > 0 ? e.spent / T.spent : 0 })).join(''));
   }
   return { title, sub, html: html + txnList(cur, 'Transactions', kind !== 'day') };
+}
+// A month as a calendar (each day's spend, darker for bigger days), its key numbers, and every day with spending.
+function daily(rt, P) {
+  const td = today(), cur = td.slice(0, 7), M = P.kind === 'month' ? P.m : P.endMonth;
+  const N = daysIn(M), last = M === cur ? +td.slice(8) : N, per = byDay(state.all.filter(t => t._m === M));
+  const days = Array.from({ length: N }, (_, i) => `${M}-${pad(i + 1)}`), max = Math.max(1, ...days.map(x => per.get(x) || 0));
+  const lead = new Date(M + '-01T00:00:00Z').getUTCDay();  // weeks start on Sunday, as in Saudi Arabia
+  const cells = days.map((x, i) => {
+    const v = per.get(x) || 0, i01 = Math.max(0, v) / max, future = i + 1 > last;
+    return `<a href="#/day/${x}" class="${x === td ? 'today' : ''}${future ? ' future' : ''}${i01 > .55 ? ' hi' : ''}" style="--i:${i01.toFixed(2)}" ` +
+      `aria-label="${esc(longDay(x))}: ${future ? 'not yet' : money(v)}"${future ? ' tabindex="-1"' : ''}><span class="n">${i + 1}</span><span class="v">${v && !future ? short(v) : ''}</span></a>`;
+  });
+  const passed = days.slice(0, last), spent = passed.reduce((a, x) => a + (per.get(x) || 0), 0);
+  const top = passed.reduce((a, x) => (per.get(x) || 0) > (per.get(a) || 0) ? x : a, passed[0]);
+  const none = passed.filter(x => (per.get(x) || 0) <= 0).length;
+  const stat = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  const counts = new Map(); for (const t of state.all) if (t._m === M && t._n && t._s > 0) counts.set(t._d, (counts.get(t._d) || 0) + 1);
+  const list = passed.filter(x => per.get(x)).reverse();
+  return { title: 'Daily spending', sub: monthName(M), html:
+    `<section class="hero"><div class="month-nav"><button type="button" aria-label="Previous month" data-go="#/daily?m=${addM(M, -1)}">‹</button>` +
+    `<span>${esc(monthName(M))}${M === cur ? `<small>so far (${last} of ${N} days)</small>` : ''}</span>` +
+    `<button type="button" aria-label="Next month" ${M < cur ? `data-go="#/daily?m=${addM(M, 1)}"` : 'disabled'}>›</button></div>` +
+    `<div class="label">Spent</div><div class="total"><small>${esc(state.currency)}</small>${fmt(spent)}</div></section>` +
+    `<section class="card"><div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => `<span class="wd" aria-hidden="true">${w}</span>`).join('')}` +
+    '<span class="blank"></span>'.repeat(lead) + cells.join('') + '</div>' +
+    `<dl class="stats">${stat('Daily average', fmt(Math.round(spent / Math.max(1, last))))}` +
+    `${stat('Highest day', top && per.get(top) > 0 ? `<a href="#/day/${top}">${esc(shortDay(top))} · ${fmt(per.get(top))}</a>` : '–')}` +
+    `${stat('No-spend days', `${none} of ${last}`)}${stat('Days with spending', last - none)}</dl></section>` +
+    card('Day by day', 'newest first', list.map(x => rk({ href: `#/day/${x}`, icon: String(+x.slice(8)), name: dayLabel(x),
+      sub: plural(counts.get(x) || 0, 'purchase'), value: per.get(x), bar: Math.max(0, per.get(x)) / max })).join('') || empty('No spending this month')) };
 }
 function trends(rt, P, X) {
   const wk = Array(7).fill(0), cnt = Array(7).fill(0);
@@ -865,7 +931,7 @@ function renderResults() {
 const PAGES = { overview, categories, merchants, cards, activity,
   category: (r, P, X) => drill(r, P, X, 'category'), merchant: (r, P, X) => drill(r, P, X, 'merchant'), card: (r, P, X) => drill(r, P, X, 'card'),
   month: (r, P, X) => drill(r, P, X, 'month'), day: (r, P, X) => drill(r, P, X, 'day'), cash: (r, P, X) => drill(r, P, X, 'cash'),
-  trends, income, recurring: recurringPage, large: largePage, search: searchPage, settings, friends: friendsPage, friend: friendsPage };
+  trends, income, recurring: recurringPage, large: largePage, search: searchPage, settings, friends: friendsPage, friend: friendsPage, daily };
 const TITLES = Object.fromEntries(TABS.map(([k, label]) => [k, label]));
 
 function render() {
@@ -962,6 +1028,7 @@ document.addEventListener('click', e => {
 // Listen on the document so rows in every list work.
 document.addEventListener('change', e => {
   if (e.target.name === 'category') e.target.form.querySelector('[name=custom]').parentElement.hidden = e.target.value !== '__new';
+  if (e.target.id === 'day-pick' && okDay(e.target.value) && e.target.value <= today()) go(`#/day/${e.target.value}`, true);
   if (e.target.name === 'split') e.target.form.theirs.parentElement.hidden = e.target.value !== 'custom';
 });
 document.addEventListener('submit', async e => {
