@@ -55,6 +55,8 @@ MAX_CATEGORY = 40
 # friend is them paying you back, not income. settled: paid back outside the bank, or squared up by hand.
 FRIENDS_SCHEMA = 'CREATE TABLE IF NOT EXISTS txn_friends (txn_id BIGINT PRIMARY KEY, friend TEXT NOT NULL, theirs_minor BIGINT NOT NULL, settled INTEGER NOT NULL DEFAULT 0)'
 MAX_FRIEND = 40
+# SMS of transactions you deleted, so the phone sending them again (or an import) doesn't bring them back.
+DELETED_SCHEMA = 'CREATE TABLE IF NOT EXISTS deleted_sms (body TEXT PRIMARY KEY)'
 # A receipt per SMS the phone sends (time, sender, what happened; never the text), so you can check delivery.
 DELIVERIES_SCHEMA = 'CREATE TABLE IF NOT EXISTS phone_deliveries (id {id} PRIMARY KEY, at TEXT NOT NULL, sender TEXT NOT NULL, outcome TEXT NOT NULL)'
 DELIVERY_DAYS = 7
@@ -100,7 +102,7 @@ class DB:
             self.pg, schema = False, SCHEMA.format(id='INTEGER')
         if url not in DB._schema_ready:  # once per process, not per request
             self.run(schema)
-            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA, FRIENDS_SCHEMA]:
+            for extra in [FAILURES_SCHEMA, *LEARNED_SCHEMAS, DELIVERIES_SCHEMA, SKIPPED_SCHEMA, FRIENDS_SCHEMA, DELETED_SCHEMA]:
                 self.run(extra.format(id='BIGSERIAL' if self.pg else 'INTEGER'))
             DB._schema_ready.add(url)  # before the re-read: if that fails, requests must still work and not retry it each time
             try:
@@ -173,7 +175,10 @@ def store_many(db, messages):
     """Parse (sender, body, received_at) messages and insert the new transactions in one statement
     (one round trip, so a big import stays fast). Returns the stored transactions."""
     rows = {}
+    deleted = {r['body'] for r in db.run('SELECT body FROM deleted_sms')} if messages else set()
     for sender, body, received_at in messages:
+        if body in deleted:
+            continue
         txn = None if AD_SENDER.search(sender.strip()) else parse(body)
         if txn:
             rows.setdefault(body, {**txn, 'sender': sender, 'body': body, 'received_at': received_at})
@@ -342,6 +347,16 @@ def set_friend(db, txn_id, friend, theirs_minor):
     db.run('INSERT INTO txn_friends (txn_id, friend, theirs_minor, settled) VALUES (:id, :f, :t, 0) '
            'ON CONFLICT (txn_id) DO UPDATE SET friend = excluded.friend, theirs_minor = excluded.theirs_minor, settled = 0',
            id=txn_id, f=friend, t=amount if credit else theirs_minor)
+
+
+def delete_transaction(db, txn_id):
+    """Remove a transaction for good: its SMS is remembered so it isn't stored again when the phone resends it."""
+    found = db.run('SELECT body FROM transactions WHERE id = :id', id=txn_id)
+    if not found:
+        raise KeyError('no such transaction')
+    db.run('INSERT INTO deleted_sms (body) VALUES (:b) ON CONFLICT (body) DO NOTHING', b=found[0]['body'])
+    for table, key in (('txn_categories', 'txn_id'), ('txn_friends', 'txn_id'), ('transactions', 'id')):
+        db.run(f'DELETE FROM {table} WHERE {key} = :id', id=txn_id)
 
 
 def settle_friend(db, friend, currency):
@@ -652,6 +667,11 @@ def _app(environ, start_response):
             tag = read_friend(environ)
         except (ValueError, KeyError, TypeError, ArithmeticError) as e:
             return respond('400 Bad Request', {'error': f'bad request: {e}'})
+    elif (method, path) == ('POST', '/api/delete'):
+        try:
+            doomed = int(read_json(environ, MAX_BODY)['id'])
+        except (ValueError, KeyError, TypeError) as e:
+            return respond('400 Bad Request', {'error': f'bad request: {e}'})
     elif (method, path) == ('POST', '/api/friend/settle'):
         try:
             square = str(read_json(environ, MAX_BODY)['friend'])
@@ -690,6 +710,12 @@ def _app(environ, start_response):
             except ValueError as e:
                 return respond('400 Bad Request', {'error': f'bad request: {e}'})
             return respond('200 OK', {'saved': True, **refreshed(db, query)})
+        if path == '/api/delete':
+            try:
+                delete_transaction(db, doomed)
+            except KeyError:
+                return respond('404 Not Found', {'error': 'no such transaction'})
+            return respond('200 OK', {'deleted': True, **refreshed(db, query)})
         if path == '/api/friend/settle':
             settle_friend(db, square, query.get('currency') or 'SAR')
             return respond('200 OK', {'saved': True, **refreshed(db, query)})

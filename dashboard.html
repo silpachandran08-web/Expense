@@ -177,6 +177,8 @@
   .txn .friend-tag { color: var(--accent); }
   .fix.friend { border-top: 1px solid var(--line); padding-top: 12px; }
   .fix .link { background: none; color: var(--accent); padding: 8px 0; }
+  .fix .link.danger { color: var(--bad, #c62828); }
+  .fix.delete { margin-top: -8px; }
   .fix .actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   .fix .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
   .txn.ignored .who b, .txn.ignored .amount { color: var(--muted); text-decoration: line-through; }
@@ -581,7 +583,8 @@ function friendForm(t) {
       [['2', 'Shared: split 2 ways, they owe half'], ['3', 'Split 3 ways, they owe 2/3'], ['4', 'Split 4 ways, they owe 3/4'], ['all', 'All theirs'], ['custom', 'Their share: type it']]
         .map(([v, label]) => `<option value="${v}" ${v === split ? 'selected' : ''}>${label}</option>`).join('') + '</select></label>' +
       `<label ${split === 'custom' ? '' : 'hidden'}>Their share<input type="text" name="theirs" inputmode="decimal" pattern="[0-9.,]+" value="${split === 'custom' ? (t._t / 100).toFixed(2) : ''}"></label>` : '') +
-    `<div class="actions"><button>${t.friend ? 'Update' : 'Save'}</button>${t.friend ? '<button type="button" class="link" data-unfriend>Remove tag</button>' : ''}</div></form>`;
+    `<div class="actions"><button>${t.friend ? 'Update' : 'Save'}</button>${t.friend ? '<button type="button" class="link" data-unfriend>Remove tag</button>' : ''}</div></form>` +
+    `<div class="fix delete"><button type="button" class="link danger" data-delete="${t.id}">🗑 Delete this transaction</button></div>`;
 }
 // What each friend owes you in this currency: their unsettled shares, less what they paid back. Negative: you owe them.
 function friendBalances() {
@@ -1045,6 +1048,14 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('click', async e => {
   if (e.target.closest('[data-unfriend]')) { saveFriend(e.target.closest('form'), true); return; }
+  const del = e.target.closest('[data-delete]');
+  if (del) {
+    if (!confirm("Delete this transaction? It won't come back, even if the phone sends the SMS again.")) return;
+    del.disabled = true;
+    if (await postAndRedraw('/api/delete', { id: Number(del.dataset.delete) })) toast('Transaction deleted.');
+    else del.disabled = false;
+    return;
+  }
   const settle = e.target.closest('[data-settle]');
   if (settle) {
     settle.disabled = true;

@@ -318,7 +318,7 @@ class PostgresStoreTest(StoreMixin, unittest.TestCase):
     def setUp(self):
         server.DB._schema_ready.discard(self.url)
         cleanup = server.DB(self.url)
-        cleanup.run('DROP TABLE IF EXISTS transactions, merchant_categories, txn_categories, txn_friends')
+        cleanup.run('DROP TABLE IF EXISTS transactions, merchant_categories, txn_categories, txn_friends, deleted_sms')
         cleanup.close()
         server.DB._schema_ready.discard(self.url)
         super().setUp()
@@ -441,6 +441,20 @@ class AppTest(unittest.TestCase):
         self.assertEqual(json.loads(tag(friend='')[1])['all'][0]['friend'], '')
         self.assertEqual(self.call('POST', '/api/friend', b'{"id": 424242, "friend": "Sara", "theirs": 1}')[0], 404)
         self.assertEqual(self.call('POST', '/api/friend', b'{}', auth='')[0], 401)
+
+    def test_deleted_transactions_stay_deleted(self):
+        sms = json.dumps({'sender': 'B', 'body': 'SAR 30.00 paid to ABU SAAD BAKERY'}).encode()
+        self.call('POST', '/sms', sms)
+        txn = json.loads(self.call('GET', '/api/transactions')[1])[0]
+        self.call('POST', '/api/friend', json.dumps({'id': txn['id'], 'friend': 'Sara', 'theirs': 10}).encode())
+        status, out = self.call('POST', '/api/delete', json.dumps({'id': txn['id']}).encode(), query='currency=SAR')
+        self.assertEqual((status, json.loads(out)['all']), (200, []))
+        self.assertEqual(self.call('POST', '/sms', sms)[0], 200)  # the phone sending it again doesn't bring it back
+        batch = json.dumps({'messages': [{'sender': 'B', 'body': 'SAR 30.00 paid to ABU SAAD BAKERY'}]}).encode()
+        self.assertEqual(json.loads(self.call('POST', '/api/import', batch)[1])['stored'], 0)
+        self.assertEqual(json.loads(self.call('GET', '/api/transactions')[1]), [])
+        self.assertEqual(self.call('POST', '/api/delete', json.dumps({'id': txn['id']}).encode())[0], 404)
+        self.assertEqual(self.call('POST', '/api/delete', b'{}', auth='')[0], 401)
 
     def test_search_all_months(self):
         for body, at in ((SAMPLES[6][0], '2026-08-02T10:00:00+03:00'), (SAMPLES[7][0], '2026-10-05T10:00:00+03:00'),
