@@ -467,9 +467,16 @@ function init() {
   scene.add(litter);
 
   // cardamom capsule: three-sided, finely ribbed, tapering to a beak
-  function podGeo(ws, hs) { const g = new T.SphereGeometry(1, ws, hs), p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), th = Math.atan2(z, x), rr = Math.hypot(x, z);
-      const f = (1 + .1 * Math.cos(3 * th) + .004 * Math.sin(24 * th)) * (1 - .22 * Math.max(0, y) ** 2) * .52; p.setXYZ(i, Math.cos(th) * rr * f, y, Math.sin(th) * rr * f); }
+  // cardamom capsule (unit length 2, ≈ 1.9 : 1 like an 8 mm bold pod): blunt stalk end, pointed beak end,
+  // rounded three-sided section, fine longitudinal ridges; `fine` adds a slight bend and irregular dents
+  function podGeo(ws, hs, fine) { const g = new T.SphereGeometry(1, ws, hs), p = g.attributes.position, v = V(0, 0, 0);
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), th = Math.atan2(z, x);
+      const rr = Math.pow(Math.hypot(x, z), y < 0 ? .78 : 1.18);
+      const ridge = fine ? .0016 * Math.abs(Math.sin(18 * th)) : .004 * Math.sin(24 * th);
+      const f = (1 + .11 * Math.cos(3 * th) + ridge) * (1 - .14 * Math.max(0, y) ** 3) * (fine ? .6 : .53);
+      v.set(Math.cos(th) * rr * f, y * (y < 0 ? .97 : 1.02), Math.sin(th) * rr * f);
+      if (fine) { const n = V(v.x, v.y * .3, v.z).normalize(); v.addScaledVector(n, (noise3(v.x * 3 + 7, v.y * 2.2, v.z * 3) - .5) * .05); v.x += .06 * y * y; }
+      p.setXYZ(i, v.x, v.y, v.z); }
     return weldNormals(g); }
 
   // fine longitudinal ribs on the capsule skin
@@ -477,10 +484,22 @@ function init() {
   const podSkin = o => new T.MeshPhysicalMaterial(Object.assign({ map: tex(ribC), bumpMap: tex(ribC, 1, 1, false), bumpScale: .03, roughness: .5, sheen: .6, sheenColor: 0xd9efb4, sheenRoughness: .6 }, o));
   // hero capsule
   const seed = new T.Group();
-  seed.add(shadow(new T.Mesh(podGeo(110, 80), podSkin({ color: 0x5f9334 }))));
-  const tipMat = M({ color: 0x6d6c3a, roughness: .8 });
-  const stalk = shadow(new T.Mesh(new T.CylinderGeometry(.05, .08, .5, 10), tipMat)); stalk.position.y = -1.2; seed.add(stalk);
-  const beak = shadow(new T.Mesh(new T.ConeGeometry(.07, .22, 10), tipMat)); beak.position.y = 1.05; seed.add(beak);
+  // skin texture, aligned with the geometry's 36 ridges: ridge/groove shading, mottling, straw-coloured stalk end, darker beak
+  const heroC = paint(1024, 512, (u, v) => {
+    const ridge = Math.pow(Math.abs(Math.sin(u * Math.PI * 36)), .7), lobe = .5 + .5 * Math.cos(3 * (Math.PI - u * Math.PI * 2));
+    const n = fbm2(u, v, 24, 6, 4), speck = noise2p(u * 256, v * 128, 256, 128);
+    let c = mix(rgb(0x4a7528), rgb(0x84ad4a), ridge * .14 + n * .5 + lobe * .2 + speck * .08);
+    if (v > .82) c = mix(c, rgb(0xa49a5a), Math.pow((v - .82) / .18, 1.6) * .85);
+    if (v < .07) c = mix(c, rgb(0x55552c), (1 - v / .07) * .7);
+    return c; });
+  const heroBump = paint(1024, 512, (u, v) => { const k = (Math.pow(Math.abs(Math.sin(u * Math.PI * 36)), .7) * .35 + fbm2(u, v, 40, 10, 3) * .65) * 255; return [k, k, k]; });
+  const heroMat = new T.MeshPhysicalMaterial({ map: tex(heroC), bumpMap: tex(heroBump, 1, 1, false), bumpScale: .005, roughness: .58, sheen: .35, sheenColor: 0xd3e6a8, sheenRoughness: .7 });
+  seed.add(shadow(new T.Mesh(podGeo(288, 160, true), heroMat)));
+  const strawMat = M({ color: 0x8c7d48, roughness: .85 }), tipMat = M({ color: 0x4f5229, roughness: .75 });
+  const stub = shadow(new T.Mesh(new T.CylinderGeometry(.045, .07, .1, 16), strawMat)); stub.position.set(.06, -1.01, 0); seed.add(stub);
+  const calyx = shadow(new T.Mesh(new T.TorusGeometry(.085, .025, 8, 24), strawMat)); calyx.rotation.x = Math.PI / 2; calyx.position.set(.06, -.95, 0); seed.add(calyx);
+  const beak = shadow(new T.Mesh(new T.ConeGeometry(.045, .08, 16), tipMat)); beak.position.set(.06, 1.04, 0); seed.add(beak);
+  seed.rotation.order = 'ZXY'; // spin about the pod's own long axis, then tilt
   const seedHome = V(.55, .8, .45), seedBed = V(.14, .012, .2); scene.add(seed);
 
   // panicles creeping along the ground from the base, with flowers then capsules
@@ -670,14 +689,14 @@ function init() {
     // a capsule falls to the forest floor
     const f = ease(range(t, 0, 1));
     seed.position.lerpVectors(seedHome, seedBed, f); seed.position.y += (1 - f) * Math.sin(time * 1.2) * .012;
-    seed.scale.setScalar(lerp(.065, .022, f)); seed.rotation.set(lerp(.5 + time * .15, 0, f), time * .3 * (1 - f) + .6, lerp(.7, Math.PI / 2, f)); seed.visible = t < 2.3;
+    seed.scale.setScalar(lerp(.085, .022, f)); seed.rotation.set(lerp(.25 + .1 * Math.sin(time * .5), 0, f), time * .35 * (1 - f) + .6, lerp(.9, Math.PI / 2, f)); seed.visible = t < 2.3;
 
     if (Math.abs(t - last) < 1e-5) return; last = t;
 
     // shoots rise from the rhizome, leaves unfurl
     const grow = t < 2 ? .1 * ease(range(t, 1.05, 2)) : lerp(.1, 1, ease(range(t, 2, 3.1)));
     { let li = 0; main.forEach((st, k) => { const h = ease(clamp((grow - st.t0) / .4)); stemsMain.setMatrixAt(k, stemM(st, h));
-        for (const L of st.leaves) leavesMain.setMatrixAt(li++, leafM(st, L, h, ease(clamp((h - (L.r - .42) * .5) / .12)) * (.35 + .65 * h))); }); }
+        for (const L of st.leaves) leavesMain.setMatrixAt(li++, leafM(st, L, h, ease(clamp((h - (L.r - .42) * .5) / .12)) * (.35 + .65 * h) * Math.min(1, h * 20))); }); }
     stemsMain.instanceMatrix.needsUpdate = leavesMain.instanceMatrix.needsUpdate = true;
 
     // panicles creep out, flower, set capsules; capsules are picked into the basket
