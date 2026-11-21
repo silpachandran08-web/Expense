@@ -510,6 +510,7 @@ function init() {
   const PORT = V(60, 0, 0), CL = 6.06, CH = 2.59, CW = 2.44;
   const corr = (rx, color) => M({ map: tex(corrC, rx, 1), bumpMap: tex(corrC, rx, 1, false), bumpScale: .12, color, roughness: .68, metalness: .2 });
   const red = 0x8c3124, wallMat = corr(2.6, red), endMat = corr(1, red), frameMat = M({ color: 0x5e2219, roughness: .6, metalness: .4 });
+  const decalMat = new T.MeshStandardMaterial({ transparent: true, roughness: .7, polygonOffset: true, polygonOffsetFactor: -2 });
   const cont = new T.Group(); cont.position.copy(PORT); scene.add(cont);
   const add = (g, m, x, y, z, parent = cont) => { const o = shadow(new T.Mesh(g, m)); o.position.set(x, y, z); parent.add(o); return o; };
   add(new T.BoxGeometry(CL, .16, CW), M({ map: tex(plankC, 1, 4), roughness: .85 }), 0, .08, 0);
@@ -524,13 +525,19 @@ function init() {
     g.font = '600 92px "Helvetica Neue",Arial,sans-serif'; g.fillText('SRXU 204718 5', 20, 110); g.font = '500 64px "Helvetica Neue",Arial,sans-serif'; g.fillText('22G1', 20, 200);
     g.font = '500 34px "Helvetica Neue",Arial,sans-serif'; g.fillText('MAX GROSS  30,480 KG   TARE  2,200 KG', 20, 280);
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
-    const decal = new T.Mesh(new T.PlaneGeometry(2.2, .69), new T.MeshStandardMaterial({ map: t, transparent: true, roughness: .7, polygonOffset: true, polygonOffsetFactor: -2 }));
+    decalMat.map = t; const decal = new T.Mesh(new T.PlaneGeometry(2.2, .69), decalMat);
     decal.position.set(CL / 2 - 1.45, CH - .62, CW / 2 + .012); cont.add(decal); }
   const doorMat = corr(.5, red), barMat = M({ color: 0x9a9a96, metalness: .8, roughness: .35 });
+  // x-ray mode while loading: corrugated skin fades to glass, brass edges and a warm interior light come up
+  const skins = [wallMat, endMat, doorMat]; skins.forEach(m => { m.transparent = true; m.side = T.DoubleSide; });
+  const edges = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CL, CH, CW)), new T.LineBasicMaterial({ color: 0xe4c991, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+  edges.position.y = CH / 2; cont.add(edges);
+  const inLight = new T.PointLight(0xffd6a0, 0, 7, 2); inLight.position.set(1.2, CH - .5, 0); cont.add(inLight);
   const doors = [1, -1].map(side => { const pivot = new T.Group(); pivot.position.set(CL / 2, 0, side * (CW / 2 - .02)); cont.add(pivot);
     add(new T.BoxGeometry(.05, CH - .3, CW / 2 - .03), doorMat, 0, CH / 2, -side * (CW / 4 - .01), pivot);
     for (const z of [.28, .78]) add(new T.CylinderGeometry(.016, .016, CH - .4, 8), barMat, .045, CH / 2, -side * z, pivot);
     return { pivot, side }; });
+  cont.traverse(o => { if (o.isMesh && skins.includes(o.material)) o.castShadow = false; });
   add(new T.BoxGeometry(1.9, .14, 1.3), M({ map: tex(plankC, 1, 2), roughness: .9 }), 4.75, .07, 2.1);
   const juteMat = M({ map: tex(juteC, 1, 1), bumpMap: tex(juteC, 1, 1, false), bumpScale: .15, roughness: 1 });
   const top = document.createElement('canvas'); top.width = 512; top.height = 320; { const g = top.getContext('2d'); g.drawImage(juteC, 0, 0, 512, 320);
@@ -679,6 +686,9 @@ function init() {
       o.s.position.lerpVectors(o.from, o.to, u); o.s.position.y += Math.sin(u * Math.PI) * .5; o.s.rotation.set(0, lerp(0, Math.PI / 2, u) + o.yaw, 0); }
     const shut = ease(range(t, 7.45, 7.95));
     for (const D of doors) D.pivot.rotation.y = D.side * lerp(-1.78, 0, shut);
+    const xr = ease(range(t, 6.1, 6.45)) * (1 - ease(range(t, 7.85, 8.1)));
+    for (const m of skins) { m.opacity = 1 - xr * .8; m.depthWrite = xr < .02; }
+    decalMat.opacity = 1 - xr * .75; edges.material.opacity = xr * .85; inLight.intensity = xr * 12;
   }
 
   const clock = new T.Clock(); let shown = false;
