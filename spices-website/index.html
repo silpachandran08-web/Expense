@@ -2,204 +2,272 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Spice Route Exports — Premium Black Pepper Exporters &amp; Wholesalers</title>
-<meta name="description" content="Farm-direct black pepper and spices for export and wholesale. Follow the journey from seed to shipment.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spice Route Exports — Black Pepper Exporters &amp; Wholesalers</title>
+<meta name="description" content="Black pepper exporters and wholesalers. Follow the crop from a single seed to a sealed export container.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#221c16;--muted:#6b5d4f;--cream:#f7f1e6;--paper:#fffaf1;--gold:#c08a2d;--leaf:#2f6b3a;--pepper:#2a1f1a;--red:#a8321f}
+/* Layout: full-bleed 3D scene behind a left narrative column, then spec-sheet sections on solid ground */
+:root{
+  --bg:#0f0d0a; --bg-2:#16130f; --fg:#eee6d8; --muted:#a49987; --line:rgba(238,230,216,.14);
+  --brass:#c6a062; --brass-2:#e4c991;
+  --display:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --body:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --gut:max(24px,6vw);
+  color-scheme:dark;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--cream);line-height:1.6;-webkit-font-smoothing:antialiased}
-h1,h2,h3{font-family:"Playfair Display",Georgia,serif;line-height:1.15}
+body{background:var(--bg);color:var(--fg);font:400 16px/1.65 var(--body);-webkit-font-smoothing:antialiased}
 a{color:inherit}
-#scene{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
 
-header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:14px 5vw;background:linear-gradient(rgba(247,241,230,.9),rgba(247,241,230,0))}
-.logo{font-family:"Playfair Display",serif;font-weight:700;font-size:1.25rem;text-decoration:none;display:flex;align-items:center;gap:10px}
-.logo i{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#5a463a,#120c08);box-shadow:inset -3px -3px 6px rgba(0,0,0,.5)}
-header nav a{text-decoration:none;margin-left:22px;font-weight:500;font-size:.95rem}
-.btn{display:inline-block;padding:12px 22px;border-radius:999px;background:var(--pepper);color:#fff;text-decoration:none;font-weight:600;border:0;cursor:pointer;font:inherit;font-weight:600}
-.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
-header .btn{padding:9px 18px;margin-left:22px}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity 1.6s ease}
+#scene.ready{opacity:1}
+.scrim{position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:linear-gradient(90deg,rgba(15,13,10,.94) 0,rgba(15,13,10,.72) 28%,rgba(15,13,10,0) 58%),
+             linear-gradient(180deg,rgba(15,13,10,.7) 0,rgba(15,13,10,0) 16%,rgba(15,13,10,0) 82%,rgba(15,13,10,.75) 100%)}
 
-.stage{min-height:100vh;display:flex;align-items:center;padding:0 7vw;position:relative;z-index:1}
-.stage.right{justify-content:flex-end}
-.stage.center{justify-content:center;text-align:center}
-.card{max-width:430px;background:rgba(255,250,241,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:22px;padding:30px 32px;box-shadow:0 20px 50px rgba(60,40,20,.12);opacity:0;transform:translateY(40px);transition:opacity .8s,transform .8s}
-.card.in{opacity:1;transform:none}
-.step{font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:8px}
-.card h2{font-size:2.1rem;margin-bottom:12px}
-.card p{color:var(--muted)}
-.card .fact{margin-top:16px;padding-top:14px;border-top:1px solid rgba(0,0,0,.08);font-size:.9rem;color:var(--ink)}
-.hero .card{max-width:520px;background:rgba(255,250,241,.7)}
-.hero h1{font-size:clamp(2.4rem,5vw,3.8rem);margin-bottom:14px}
-.hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
-.scrollhint{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);animation:bob 2s infinite}
-@keyframes bob{50%{transform:translate(-50%,8px)}}
+header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:calc(env(safe-area-inset-top,0px) + 22px) max(24px,4vw) 22px}
+.brand{text-decoration:none;display:flex;flex-direction:column;line-height:1}
+.brand b{font:400 1.65rem/1 var(--display);letter-spacing:.01em}
+.brand small{font:500 .6rem/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+header nav{display:flex;align-items:center;gap:30px}
+header nav a{font:500 .7rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--muted);transition:color .2s}
+header nav a:hover{color:var(--fg)}
+header nav a.cta{color:var(--brass);border:1px solid rgba(198,160,98,.55);padding:11px 16px}
+header nav a.cta:hover{background:var(--brass);color:var(--bg)}
 
-#dots{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:12px;transition:opacity .4s}
-#dots a{display:block;width:10px;height:10px;border-radius:50%;background:rgba(34,28,22,.25);position:relative}
-#dots a.on{background:var(--gold);transform:scale(1.4)}
-#dots a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.75rem;background:var(--paper);padding:2px 8px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none}
-#dots a:hover span,#dots a.on span{opacity:1}
+.stage{position:relative;z-index:2;min-height:100vh;display:flex;align-items:center;padding:110px var(--gut) 80px}
+.copy{max-width:31rem;transition:opacity 1s ease,transform 1s ease}
+.copy:not(.in){opacity:0;transform:translateY(26px)}
+.kicker{display:flex;align-items:center;gap:14px;font:500 .7rem/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--brass)}
+.kicker::after{content:"";width:44px;height:1px;background:currentColor;opacity:.6}
+h1,h2{font-family:var(--display);font-weight:400;letter-spacing:-.005em;text-wrap:balance}
+h1{font-size:clamp(3rem,6.2vw,5.6rem);line-height:.98;margin:22px 0 22px}
+h2{font-size:clamp(2.5rem,4.6vw,4.2rem);line-height:1.02;margin:20px 0 18px}
+h1 em,h2 em{color:var(--brass-2)}
+.copy>p{color:var(--muted);font-size:1.04rem;max-width:34em}
+.spec{display:grid;grid-template-columns:auto 1fr;margin-top:30px;border-top:1px solid var(--line)}
+.spec dt,.spec dd{padding:11px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:.8rem}
+.spec dt{color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-size:.66rem;padding-right:28px;display:flex;align-items:center}
+.spec dd{color:var(--fg)}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:26px;margin-top:34px}
+.btn{display:inline-block;background:var(--brass);color:var(--bg);text-decoration:none;border:0;cursor:pointer;
+  font:600 .74rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;padding:17px 24px;transition:background .2s}
+.btn:hover{background:var(--brass-2)}
+.link{font:500 .74rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:6px}
+.link:hover{border-color:var(--brass)}
+.hint{position:absolute;left:var(--gut);bottom:34px;font:500 .64rem/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px}
+.hint::before{content:"";width:1px;height:34px;background:linear-gradient(var(--brass),transparent);animation:drip 2.4s ease-in-out infinite}
+@keyframes drip{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
 
-.solid{position:relative;z-index:2;background:var(--cream);padding:100px 7vw}
-.solid.dark{background:var(--pepper);color:#f3e9da}
-.solid h2{font-size:clamp(2rem,4vw,2.8rem);margin-bottom:10px}
-.lead{color:var(--muted);max-width:620px;margin-bottom:44px}
-.dark .lead{color:#c9b8a2}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:22px}
-.prod{background:var(--paper);border-radius:20px;padding:26px;box-shadow:0 8px 30px rgba(60,40,20,.07);transition:transform .3s,box-shadow .3s}
-.prod:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(60,40,20,.14)}
-.swatch{width:54px;height:54px;border-radius:50%;margin-bottom:16px;box-shadow:inset -6px -6px 12px rgba(0,0,0,.35)}
-.prod h3{font-size:1.3rem;margin-bottom:6px}
-.prod p{color:var(--muted);font-size:.93rem}
-.tags{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
-.tags span{font-size:.75rem;background:var(--cream);padding:3px 10px;border-radius:999px}
-.feat{border-top:1px solid rgba(243,233,218,.2);padding-top:18px}
-.feat b{display:block;font-family:"Playfair Display",serif;font-size:1.25rem;margin-bottom:6px;color:#e8c27a}
-.feat p{color:#c9b8a2;font-size:.93rem}
+#rail{position:fixed;right:max(20px,2.6vw);top:50%;transform:translateY(-50%);z-index:20;list-style:none;display:grid;gap:14px;transition:opacity .5s}
+#rail a{display:flex;align-items:center;justify-content:flex-end;gap:12px;text-decoration:none;font:500 .62rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:rgba(238,230,216,.38);transition:color .3s}
+#rail a::after{content:"";width:16px;height:1px;background:currentColor;transition:width .3s}
+#rail a span{opacity:0;transition:opacity .3s}
+#rail a:hover span,#rail a.on span{opacity:1}
+#rail a.on{color:var(--fg)}
+#rail a.on::after{width:38px;background:var(--brass)}
 
-.contact{display:grid;grid-template-columns:1fr 1.2fr;gap:50px;align-items:start}
-.info div{margin-bottom:18px}
-.info small{display:block;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);font-weight:600;font-size:.72rem}
-form{background:var(--paper);border-radius:22px;padding:30px;box-shadow:0 8px 30px rgba(60,40,20,.08);display:grid;gap:14px}
-form .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-label{font-size:.85rem;font-weight:500;display:grid;gap:5px}
-input,select,textarea{font:inherit;padding:11px 13px;border-radius:10px;border:1px solid #ddd0bd;background:#fff;color:var(--ink)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:transparent}
-footer{position:relative;z-index:2;background:#16100c;color:#9d8b76;text-align:center;padding:26px;font-size:.85rem}
+.sheet{position:relative;z-index:3;background:var(--bg);border-top:1px solid var(--line);padding:120px var(--gut)}
+.sheet.alt{background:var(--bg-2)}
+.head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px 80px;align-items:end;margin-bottom:56px}
+.head p{color:var(--muted);max-width:34em}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th{text-align:left;font:500 .64rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:0 16px 16px 0;border-bottom:1px solid var(--line)}
+td{padding:22px 16px 22px 0;border-bottom:1px solid var(--line);font:400 .86rem/1.4 var(--mono);vertical-align:baseline;font-variant-numeric:tabular-nums}
+td:first-child{font:400 1.45rem/1.2 var(--display)}
+td:first-child small{display:block;font:400 .78rem/1.5 var(--body);color:var(--muted);margin-top:4px}
+.note{margin-top:22px;font:400 .74rem/1.6 var(--mono);color:var(--muted)}
+.also{margin-top:56px;display:grid;grid-template-columns:auto 1fr;gap:12px 40px;align-items:baseline;border-top:1px solid var(--line);padding-top:26px}
+.also span{font:500 .64rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.also p{font:400 1.5rem/1.4 var(--display)}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid var(--line)}
+.steps div{padding:30px 28px 0 0}
+.steps div+div{padding-left:28px;border-left:1px solid var(--line)}
+.steps i{font:500 .66rem/1 var(--mono);letter-spacing:.16em;color:var(--brass);font-style:normal}
+.steps h3{font:400 1.75rem/1.15 var(--display);margin:18px 0 12px}
+.steps p{color:var(--muted);font-size:.93rem}
 
-@media (max-width:760px){
-  header nav a:not(.btn){display:none}
-  .logo{font-size:1.05rem;white-space:nowrap}
-  header .btn{padding:8px 14px;margin-left:0;white-space:nowrap;font-size:.85rem}
-  .stage,.stage.right{align-items:flex-end;justify-content:center;padding:0 16px 9vh}
-  .card{max-width:none;padding:22px}
-  .card h2{font-size:1.6rem}
-  .hero .card{margin-bottom:6vh}
-  #dots{display:none}
-  .solid{padding:70px 16px}
-  .contact,form .row{grid-template-columns:1fr}
+.contact{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:80px}
+.contact h2{margin-top:18px}
+.info{margin-top:40px}
+form{display:grid;gap:26px;align-content:start}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+label{display:grid;gap:10px;font:500 .64rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+input,select,textarea{font:400 1rem/1.4 var(--body);color:var(--fg);background:transparent;border:0;border-bottom:1px solid rgba(238,230,216,.3);padding:8px 0 12px;border-radius:0}
+select option{background:var(--bg-2)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brass)}
+textarea{resize:vertical}
+form .btn{justify-self:start;margin-top:6px}
+footer{position:relative;z-index:3;background:var(--bg);border-top:1px solid var(--line);padding:28px var(--gut) calc(28px + env(safe-area-inset-bottom,0px));
+  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font:400 .7rem/1.5 var(--mono);letter-spacing:.1em;color:var(--muted)}
+
+@media (max-width:900px){
+  #rail{display:none}
+  .head,.contact{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr 1fr}
+  .steps div:nth-child(3){border-left:0;padding-left:0}
 }
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.card{transition:none}.scrollhint{animation:none}}
+@media (max-width:760px){
+  header nav a:not(.cta){display:none}
+  header{padding:calc(env(safe-area-inset-top,0px) + 16px) 20px 16px;background:linear-gradient(rgba(15,13,10,.92),rgba(15,13,10,.6) 70%,rgba(15,13,10,0))}
+  header nav a.cta{white-space:nowrap;padding:10px 12px}
+  .brand small{white-space:nowrap}
+  .scrim{background:linear-gradient(0deg,rgba(15,13,10,.96) 0,rgba(15,13,10,.82) 40%,rgba(15,13,10,0) 68%),linear-gradient(180deg,rgba(15,13,10,.7) 0,rgba(15,13,10,0) 14%)}
+  .stage{align-items:flex-end;padding:100px 20px 9vh}
+  h2{font-size:2.3rem}
+  .spec{margin-top:20px}
+  .hint{display:none}
+  .sheet{padding:80px 20px}
+  .steps{grid-template-columns:1fr}
+  .steps div,.steps div+div{border-left:0;padding-left:0;padding-bottom:12px}
+  .row{grid-template-columns:1fr}
+  .also{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.copy,#scene{transition:none}.hint::before{animation:none}}
 </style>
 </head>
 <body>
 <canvas id="scene" aria-hidden="true"></canvas>
+<div class="scrim" id="scrim"></div>
 
 <header>
-  <a class="logo" href="#top"><i></i>Spice Route Exports</a>
-  <nav><a href="#journey">Journey</a><a href="#products">Products</a><a href="#why">Why us</a><a class="btn" href="#contact">Get a quote</a></nav>
+  <a class="brand" href="#top"><b>Spice Route</b><small>Exporters · Wholesale</small></a>
+  <nav><a href="#journey">The crop</a><a href="#products">Products</a><a href="#process">Process</a><a class="cta" href="#contact">Request a quote</a></nav>
 </header>
-<nav id="dots" aria-label="Journey stages"></nav>
+<ol id="rail" aria-label="Journey"></ol>
 
 <main>
-  <section class="stage hero" id="top" data-name="Welcome">
-    <div class="card in">
-      <div class="step">Exporters &amp; Wholesalers</div>
-      <h1>The King of Spices, from seed to your port.</h1>
-      <p>Farm-direct black pepper, cleaned, graded and packed for importers, wholesalers and food manufacturers worldwide. Scroll to follow a single peppercorn's journey.</p>
-      <div class="actions"><a class="btn" href="#contact">Request a quote</a><a class="btn ghost" href="#journey">See the journey</a></div>
+  <section class="stage" id="top" data-name="Intro">
+    <div class="copy in">
+      <div class="kicker">Black pepper · Export &amp; wholesale</div>
+      <h1>Black pepper, <em>from the vine</em> to your container.</h1>
+      <p>We source, process and ship whole and ground black pepper for importers, wholesalers and food manufacturers. Scroll to follow the crop from a single seed to a sealed container.</p>
+      <div class="actions"><a class="btn" href="#contact">Request a quote</a><a class="link" href="#products">Product specifications →</a></div>
     </div>
-    <div class="scrollhint">Scroll ↓</div>
+    <div class="hint">Scroll to begin</div>
   </section>
 
-  <section class="stage right" id="journey" data-name="The seed">
-    <div class="card"><div class="step">01 · The seed</div><h2>It begins with one peppercorn</h2>
-      <p>Black pepper (<em>Piper nigrum</em>) starts as a seed or a cutting from a healthy mother vine, planted in rich, well-drained tropical soil.</p>
-      <div class="fact">🌱 Healthy planting stock is where quality starts.</div></div>
+  <section class="stage" id="journey" data-name="Seed">
+    <div class="copy"><div class="kicker">01 / 07 · The seed</div>
+      <h2>One seed, a <em>twenty-year</em> crop.</h2>
+      <p>Black pepper is the dried fruit of <i>Piper nigrum</i>, a perennial vine native to the Western Ghats of India. A new vine starts from seed or from a cutting of a proven mother plant, set at the foot of a support tree.</p>
+      <dl class="spec"><dt>Botanical name</dt><dd>Piper nigrum L.</dd><dt>Family</dt><dd>Piperaceae</dd><dt>Propagation</dt><dd>Seed or rooted cutting</dd></dl></div>
   </section>
 
-  <section class="stage" data-name="Sprouting">
-    <div class="card"><div class="step">02 · Sprouting</div><h2>The monsoon wakes it up</h2>
-      <p>Warm rain and shade coax out the first shoot and heart-shaped leaves. Farmers plant it beside a living support tree or pole.</p>
-      <div class="fact">🌧️ Pepper loves humidity, heavy rainfall and partial shade.</div></div>
+  <section class="stage" data-name="Sprout">
+    <div class="copy"><div class="kicker">02 / 07 · Sprouting</div>
+      <h2>The monsoon does <em>the rest.</em></h2>
+      <p>Planting follows the first heavy rains. Warm, humid air and filtered shade bring up the first shoot and its heart-shaped leaves within weeks.</p>
+      <dl class="spec"><dt>Rainfall</dt><dd>1,500–2,500 mm / year</dd><dt>Optimal temp.</dt><dd>20–30 °C</dd><dt>Light</dt><dd>Partial, filtered shade</dd></dl></div>
   </section>
 
-  <section class="stage right" data-name="Climbing vine">
-    <div class="card"><div class="step">03 · The climbing vine</div><h2>A vine that reaches for the sky</h2>
-      <p>Pepper is a climber. Over three years the vine spirals up its support, gripping it with aerial roots, before it bears its first crop.</p>
-      <div class="fact">🌿 A healthy vine keeps producing for 20+ years.</div></div>
+  <section class="stage" data-name="Vine">
+    <div class="copy"><div class="kicker">03 / 07 · The vine</div>
+      <h2>A climber that <em>needs support.</em></h2>
+      <p>Pepper climbs by aerial roots that grip the bark of its support tree. It is trained to around six metres and comes into full bearing in its third or fourth year.</p>
+      <dl class="spec"><dt>First harvest</dt><dd>Year 3</dd><dt>Training height</dt><dd>≈ 6 m</dd><dt>Productive life</dt><dd>20+ years</dd></dl></div>
   </section>
 
-  <section class="stage" data-name="Berries">
-    <div class="card"><div class="step">04 · Flowering &amp; berries</div><h2>Spikes of green pearls</h2>
-      <p>Tiny flowers form on hanging spikes, each carrying dozens of berries. Over six to eight months they swell and ripen from green to red.</p>
-      <div class="fact">🫛 One spike holds 50–150 berries.</div></div>
+  <section class="stage" data-name="Flowering">
+    <div class="copy"><div class="kicker">04 / 07 · Flowering</div>
+      <h2>Green spikes, <em>ripening slowly.</em></h2>
+      <p>Flowers form on hanging spikes after the monsoon. Over six to eight months each spike fills with tightly packed berries that turn from green to red as they ripen.</p>
+      <dl class="spec"><dt>Spike length</dt><dd>7–15 cm</dd><dt>Fruit development</dt><dd>6–8 months</dd><dt>Ripening</dt><dd>Green → yellow → red</dd></dl></div>
   </section>
 
-  <section class="stage right" data-name="Harvest">
-    <div class="card"><div class="step">05 · Hand harvest</div><h2>Plucked at the perfect moment</h2>
-      <p>When the first berries on a spike blush red, the whole spike is hand-picked and gathered in baskets, then threshed to free the berries.</p>
-      <div class="fact">🧺 Timing the harvest decides pungency and colour.</div></div>
+  <section class="stage" data-name="Harvest">
+    <div class="copy"><div class="kicker">05 / 07 · Harvest</div>
+      <h2>Picked by hand, <em>spike by spike.</em></h2>
+      <p>Harvest starts when one or two berries on a spike turn red. Pickers strip whole spikes into baskets, and the berries are then threshed from their stalks.</p>
+      <dl class="spec"><dt>Harvest signal</dt><dd>1–2 red berries per spike</dd><dt>Method</dt><dd>Hand-picked</dd><dt>Threshing</dt><dd>Manual or mechanical</dd></dl></div>
   </section>
 
-  <section class="stage" data-name="Sun drying">
-    <div class="card"><div class="step">06 · Sun drying</div><h2>The sun turns green to black</h2>
-      <p>Berries are spread on clean mats and sun-dried for 7–10 days. They shrink, wrinkle and turn the deep black every kitchen knows.</p>
-      <div class="fact">☀️ Dried to safe moisture levels for long storage.</div></div>
+  <section class="stage" data-name="Drying">
+    <div class="copy"><div class="kicker">06 / 07 · Sun drying</div>
+      <h2>A week <em>in the sun.</em></h2>
+      <p>Berries are spread thin on clean mats and turned through the day. As moisture leaves, the skin darkens and wrinkles into the black peppercorn, with its full aroma and bite.</p>
+      <dl class="spec"><dt>Drying time</dt><dd>7–10 days</dd><dt>Target moisture</dt><dd>≤ 11 %</dd><dt>Dry recovery</dt><dd>≈ 1/3 of fresh weight</dd></dl></div>
   </section>
 
-  <section class="stage right" data-name="Export">
-    <div class="card"><div class="step">07 · Grade, pack &amp; export</div><h2>Graded, packed, shipped</h2>
-      <p>We clean, sort and grade by size and density, then pack in jute or PP bags to your specification and load full or part containers.</p>
-      <div class="fact">🚢 Export documentation handled end to end.</div></div>
+  <section class="stage" data-name="Export">
+    <div class="copy"><div class="kicker">07 / 07 · Pack &amp; ship</div>
+      <h2>Cleaned, graded, <em>packed, sealed.</em></h2>
+      <p>Each lot is cleaned, destoned and graded by size and bulk density, tested, then packed to your specification. We stuff and seal the container at origin and prepare the export documents.</p>
+      <dl class="spec"><dt>Packing</dt><dd>25 / 50 kg jute or PP</dd><dt>Shipments</dt><dd>20′ / 40′ FCL · LCL</dd><dt>Documents</dt><dd>Phyto · Origin · Quality</dd></dl></div>
   </section>
 
-  <section class="stage center" data-name="Worldwide">
-    <div class="card"><div class="step">Delivered</div><h2>From our farms to your shelves</h2>
-      <p>Reliable supply, consistent quality and honest pricing for importers and wholesalers around the world.</p>
-      <div class="actions" style="margin-top:18px"><a class="btn" href="#products">View products</a></div></div>
+  <section class="stage" data-name="Delivered">
+    <div class="copy"><div class="kicker">Delivered</div>
+      <h2>A consistent lot, <em>every shipment.</em></h2>
+      <p>Reliable volumes, transparent specifications and straightforward pricing for importers and wholesalers.</p>
+      <dl class="spec"><dt>Terms</dt><dd>FOB · CFR · CIF</dd><dt>Samples</dt><dd>Available on request</dd></dl>
+      <div class="actions"><a class="btn" href="#contact">Request a quote</a><a class="link" href="#products">View specifications →</a></div></div>
   </section>
 </main>
 
-<section class="solid" id="products">
-  <h2>Our products</h2>
-  <p class="lead">Pepper is our speciality. We also supply a range of whole and ground spices in bulk. Specs and grades on request.</p>
-  <div class="grid">
-    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#5a463a,#120c08)"></div><h3>Black pepper</h3><p>Whole, sun-dried, machine-cleaned and graded.</p><div class="tags"><span>500 G/L</span><span>550 G/L</span><span>570 G/L</span><span>ASTA</span><span>FAQ</span></div></div>
-    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#f4ead6,#bfae8c)"></div><h3>White pepper</h3><p>Skin removed for a clean, mellow heat. Ideal for sauces and light dishes.</p><div class="tags"><span>Whole</span><span>Powder</span></div></div>
-    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#9bc25a,#3f6a22)"></div><h3>Green pepper</h3><p>Dehydrated or in brine, harvested young for a fresh, bright flavour.</p><div class="tags"><span>Dehydrated</span><span>Brine</span></div></div>
-    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#8a5a3a,#3a2416)"></div><h3>Pepper powder</h3><p>Freshly ground to your mesh size, in retail or bulk packs.</p><div class="tags"><span>Coarse</span><span>Fine</span><span>Custom mesh</span></div></div>
-    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#e0b441,#9a6a12)"></div><h3>Other spices</h3><p>Cardamom, turmeric, cloves, cinnamon, nutmeg and more on request.</p><div class="tags"><span>Whole</span><span>Ground</span></div></div>
+<section class="sheet" id="products">
+  <div class="head">
+    <div><div class="kicker">Products</div><h2>Specifications</h2></div>
+    <p>Black pepper is our core line, supplied whole in standard density grades or ground to your mesh. Every lot ships with a quality certificate.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Product</th><th>Bulk density</th><th>Moisture</th><th>Extraneous matter</th><th>Packing</th></tr></thead>
+      <tbody>
+        <tr><td>Black pepper 500 G/L<small>FAQ grade, machine cleaned</small></td><td>500 g/L min.</td><td>≤ 12 %</td><td>≤ 1.0 %</td><td>25 / 50 kg jute, PP</td></tr>
+        <tr><td>Black pepper 550 G/L<small>Machine cleaned, sorted</small></td><td>550 g/L min.</td><td>≤ 12 %</td><td>≤ 0.5 %</td><td>25 / 50 kg jute, PP</td></tr>
+        <tr><td>Black pepper 570 G/L<small>ASTA quality</small></td><td>570 g/L min.</td><td>≤ 11 %</td><td>≤ 0.2 %</td><td>25 / 50 kg jute, PP</td></tr>
+        <tr><td>White pepper<small>Decorticated, whole</small></td><td>On request</td><td>≤ 12 %</td><td>≤ 0.5 %</td><td>25 kg PP, cartons</td></tr>
+        <tr><td>Green pepper<small>Dehydrated or in brine</small></td><td>—</td><td>On request</td><td>—</td><td>Cartons, drums</td></tr>
+        <tr><td>Pepper powder<small>Coarse to fine</small></td><td>Mesh 30–80</td><td>≤ 12 %</td><td>—</td><td>Bulk or retail packs</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Typical values. Final specification is agreed per contract.</p>
+  <div class="also"><span>Also supplied</span><p>Cardamom · Turmeric · Cloves · Cinnamon · Nutmeg &amp; mace · Dry ginger</p></div>
+</section>
+
+<section class="sheet alt" id="process">
+  <div class="head">
+    <div><div class="kicker">Process</div><h2>How each lot is handled</h2></div>
+    <p>Wholesale volumes, handled with the care of a family farm, from the grower to the container door.</p>
+  </div>
+  <div class="steps">
+    <div><i>01</i><h3>Farm-direct sourcing</h3><p>Bought from growers we know, so every lot is traceable to its origin and harvest.</p></div>
+    <div><i>02</i><h3>Cleaning &amp; grading</h3><p>Destoned, sieved and density-graded to the specification on your contract.</p></div>
+    <div><i>03</i><h3>Quality testing</h3><p>Moisture, density and purity checked before packing. Samples kept for every lot.</p></div>
+    <div><i>04</i><h3>Export handling</h3><p>Container stuffing at origin, phytosanitary and origin certificates, and shipment tracking.</p></div>
   </div>
 </section>
 
-<section class="solid dark" id="why">
-  <h2>Why buyers choose us</h2>
-  <p class="lead">Wholesale volumes with the care of a family farm.</p>
-  <div class="grid">
-    <div class="feat"><b>Farm-direct sourcing</b><p>Bought directly from growers we know, so you get traceable, fresh crop.</p></div>
-    <div class="feat"><b>Quality checked</b><p>Cleaned, sorted and tested for moisture, density and purity before packing.</p></div>
-    <div class="feat"><b>Custom packing</b><p>Jute, PP or retail packs, private labelling and your choice of bag sizes.</p></div>
-    <div class="feat"><b>Export ready</b><p>FCL and LCL shipments with phytosanitary and origin documents handled.</p></div>
-  </div>
-</section>
-
-<section class="solid" id="contact">
+<section class="sheet" id="contact">
   <div class="contact">
-    <div class="info">
-      <h2>Let's talk pepper</h2>
-      <p class="lead" style="margin-bottom:28px">Tell us the product, grade and quantity you need and we'll get back with a quote.</p>
+    <div>
+      <div class="kicker">Enquiries</div>
+      <h2>Request a quote</h2>
+      <p style="color:var(--muted);max-width:30em">Tell us the product, grade, quantity and destination port. We reply with pricing and availability.</p>
       <!-- TODO: replace with real contact details -->
-      <div><small>Phone / WhatsApp</small>+00 00000 00000</div>
-      <div><small>Email</small>sales@example.com</div>
-      <div><small>Address</small>Your address here</div>
+      <dl class="spec info"><dt>Phone</dt><dd>+00 00000 00000</dd><dt>Email</dt><dd>sales@example.com</dd><dt>Address</dt><dd>Your address here</dd></dl>
     </div>
     <form id="quote" data-email="sales@example.com">
-      <div class="row"><label>Name<input name="name" required autocomplete="name"></label><label>Company<input name="company" autocomplete="organization"></label></div>
-      <div class="row"><label>Product<select name="product"><option>Black pepper</option><option>White pepper</option><option>Green pepper</option><option>Pepper powder</option><option>Other spices</option></select></label><label>Quantity<input name="qty" placeholder="e.g. 1 x 20ft container"></label></div>
-      <label>Message<textarea name="msg" rows="4" placeholder="Grade, packing, destination port..."></textarea></label>
+      <div class="row"><label for="f-name">Name<input id="f-name" name="name" required autocomplete="name"></label><label for="f-co">Company<input id="f-co" name="company" autocomplete="organization"></label></div>
+      <div class="row"><label for="f-prod">Product<select id="f-prod" name="product"><option>Black pepper 500 G/L</option><option>Black pepper 550 G/L</option><option>Black pepper 570 G/L</option><option>White pepper</option><option>Green pepper</option><option>Pepper powder</option><option>Other spices</option></select></label><label for="f-qty">Quantity<input id="f-qty" name="qty" placeholder="e.g. 1 × 20′ FCL"></label></div>
+      <label for="f-msg">Destination &amp; notes<textarea id="f-msg" name="msg" rows="3" placeholder="Port, packing, delivery window"></textarea></label>
       <button class="btn" type="submit">Send enquiry</button>
     </form>
   </div>
 </section>
-<footer>© <span id="yr"></span> Spice Route Exports. All rights reserved.</footer>
+<footer><span>© <span id="yr"></span> Spice Route Exports</span><span>Black pepper · Spices · Export &amp; wholesale</span></footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
 <script>
 document.getElementById('yr').textContent = new Date().getFullYear();
 
@@ -211,245 +279,339 @@ document.getElementById('quote').addEventListener('submit', e => {
   location.href = `mailto:${to}?subject=${encodeURIComponent('Enquiry: ' + f.get('product'))}&body=${encodeURIComponent(body)}`;
 });
 
-// Reveal cards + side dots
 const stages = [...document.querySelectorAll('.stage')];
-const dots = document.getElementById('dots');
-stages.forEach((s, i) => { const a = document.createElement('a'); a.href = '#'; a.innerHTML = `<span>${s.dataset.name}</span>`;
-  a.onclick = ev => { ev.preventDefault(); scrollTo({ top: i * innerHeight, behavior: 'smooth' }); }; dots.appendChild(a); });
-const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('in')), { threshold: .3 });
-document.querySelectorAll('.card').forEach(c => io.observe(c));
+const rail = document.getElementById('rail'), scrim = document.getElementById('scrim');
+stages.forEach((s, i) => {
+  const li = document.createElement('li'), a = document.createElement('a');
+  a.href = '#'; a.innerHTML = `<span>${s.dataset.name}</span>${String(i).padStart(2, '0')}`;
+  a.onclick = ev => { ev.preventDefault(); scrollTo({ top: s.offsetTop, behavior: 'smooth' }); };
+  li.appendChild(a); rail.appendChild(li);
+});
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('in')), { threshold: .25 });
+document.querySelectorAll('.copy').forEach(c => io.observe(c));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-if (window.THREE) init();
+if (window.THREE) setTimeout(init, 30); // let the text paint before textures are generated
 
 function init() {
-  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-  const range = (t, a, b) => clamp((t - a) / (b - a));
-  const ease = x => x * x * (3 - 2 * x);
-  const lerp = (a, b, k) => a + (b - a) * k;
-  const rnd = (a, b) => a + Math.random() * (b - a);
-  const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .85 }, o));
+  const T = THREE;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v)), range = (t, a, b) => clamp((t - a) / (b - a));
+  const ease = x => x * x * (3 - 2 * x), lerp = (a, b, k) => a + (b - a) * k, V = (x, y, z) => new T.Vector3(x, y, z);
+  let rs = 20240917; const rand = () => (rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0) / 4294967296;
 
+  // ---------- noise ----------
+  function hash(i, j, k) { let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k, 1274126177);
+    h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+  const sm = t => t * t * (3 - 2 * t);
+  function noise3(x, y, z) { const i = Math.floor(x), j = Math.floor(y), k = Math.floor(z), u = sm(x - i), v = sm(y - j), w = sm(z - k);
+    return lerp(lerp(lerp(hash(i, j, k), hash(i + 1, j, k), u), lerp(hash(i, j + 1, k), hash(i + 1, j + 1, k), u), v),
+                lerp(lerp(hash(i, j, k + 1), hash(i + 1, j, k + 1), u), lerp(hash(i, j + 1, k + 1), hash(i + 1, j + 1, k + 1), u), v), w); }
+  function noise2p(x, y, px, py) { const i = Math.floor(x), j = Math.floor(y), u = sm(x - i), v = sm(y - j), m = (a, p) => ((a % p) + p) % p, h = (a, b) => hash(m(a, px), m(b, py), 7);
+    return lerp(lerp(h(i, j), h(i + 1, j), u), lerp(h(i, j + 1), h(i + 1, j + 1), u), v); }
+  function fbm2(u, v, px, py, o) { let s = 0, a = .5, f = 1; for (let n = 0; n < o; n++) { s += a * noise2p(u * px * f, v * py * f, px * f, py * f); a *= .5; f *= 2; } return s / (1 - Math.pow(.5, o)); }
+
+  // ---------- renderer ----------
   const canvas = document.getElementById('scene');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xf3ead8, 22, 60);
-  scene.background = new THREE.Color();
-  const camera = new THREE.PerspectiveCamera(42, 1, .02, 200);
+  const R = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  R.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.05;
+  R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
+  const scene = new T.Scene(); scene.background = new T.Color(); scene.fog = new T.FogExp2(0, .1);
+  const camera = new T.PerspectiveCamera(40, 1, .01, 300);
+  const ANISO = R.capabilities.getMaxAnisotropy();
 
-  scene.add(new THREE.HemisphereLight(0xfff4dd, 0x5a4330, .55));
-  const sun = new THREE.DirectionalLight(0xfff1d6, .9);
-  sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 40 });
-  sun.shadow.bias = -.0008;
-  scene.add(sun, sun.target);
+  // ---------- procedural textures ----------
+  const rgb = h => [(h >> 16) & 255, (h >> 8) & 255, h & 255], mix = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+  function paint(w, h, fn) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), d = g.createImageData(w, h), D = d.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = (y * w + x) * 4, r = fn(x / w, y / h); D[o] = r[0]; D[o + 1] = r[1]; D[o + 2] = r[2]; D[o + 3] = 255; }
+    g.putImageData(d, 0, 0); return c; }
+  function tex(c, rx = 1, ry = 1, color = true) { const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry);
+    if (color) t.colorSpace = T.SRGBColorSpace; t.anisotropy = ANISO; return t; }
+  const weave = (W, base, dark, size = 512) => paint(size, size, (u, v) => { const X = u * W, Y = v * W, cx = Math.floor(X), cy = Math.floor(Y), over = (cx + cy) & 1;
+    const s = over ? Math.sin((X - cx) * Math.PI) : Math.sin((Y - cy) * Math.PI); return mix(dark, base, (.3 + .7 * s) * (.8 + .3 * noise2p(u * 64, v * 64, 64, 64))); });
 
-  // ---------- world ----------
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 40), M(0x6f8a45));
-  ground.rotation.x = -Math.PI / 2; ground.position.x = 5; ground.receiveShadow = true; scene.add(ground);
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), M(0x2e7391, { roughness: .25, metalness: .1 }));
-  water.rotation.x = -Math.PI / 2; water.position.set(73, .02, 0); scene.add(water);
-  const mound = new THREE.Mesh(new THREE.SphereGeometry(1.3, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2), M(0x4a3222, { roughness: 1 }));
-  mound.scale.y = .08; mound.receiveShadow = true; scene.add(mound);
-  // a few grass tufts around the farm
-  const tuftGeo = new THREE.ConeGeometry(.05, .25, 4), tuftMat = M(0x3f6e2a);
-  for (let i = 0; i < 160; i++) { const m = new THREE.Mesh(tuftGeo, tuftMat), a = rnd(0, 6.28), r = rnd(1.5, 9);
-    m.position.set(Math.cos(a) * r, .1, Math.sin(a) * r); m.rotation.z = rnd(-.3, .3); scene.add(m); }
+  const soilC = paint(512, 512, (u, v) => { const n = fbm2(u, v, 6, 6, 5), f = noise2p(u * 128, v * 128, 128, 128), p = fbm2(u, v, 40, 40, 2);
+    let c = mix(rgb(0x1c130c), rgb(0x47321f), n).map(x => x * (.8 + .4 * f)); return p > .7 ? mix(c, rgb(0x6f5e4e), (p - .7) * 3) : c; });
+  const barkC = paint(512, 1024, (u, v) => { const n = fbm2(u, v, 10, 3, 5), s = fbm2(u, v, 28, 4, 4); return mix(rgb(0x241b15), rgb(0x6a5848), n * .7 + Math.pow(Math.abs(s - .5) * 2, .9) * .35); });
+  const concC = paint(512, 512, (u, v) => mix(rgb(0x4c4a46), rgb(0x86817a), fbm2(u, v, 8, 8, 5) * .8 + noise2p(u * 256, v * 256, 256, 256) * .2));
+  const corrC = paint(256, 32, (u, v) => { const s = .5 + .5 * Math.sin(u * Math.PI * 16), k = (.8 + .2 * s) * (.9 + .1 * noise2p(u * 32, v * 4, 32, 4)) * 255; return [k, k, k]; });
+  const plankC = paint(256, 256, (u, v) => { const pl = Math.floor(v * 8); let c = mix(rgb(0x4a3420), rgb(0x8a6644), fbm2(u, v, 2, 32, 4) * (.7 + .3 * hash(pl, 1, 1))); return (v * 8) % 1 < .05 ? c.map(x => x * .35) : c; });
+  const juteC = weave(48, rgb(0xb08d5e), rgb(0x86683f));
+  const matC = weave(40, rgb(0xb59360), rgb(0x5e4426));
 
-  // wrinkle a sphere so peppercorns look dried (offset depends only on position, so seams don't crack)
-  function wrinkle(geo, amt) {
-    const p = geo.attributes.position, v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = v.clone().normalize();
-      v.addScaledVector(n, Math.sin(n.x * 23) * Math.sin(n.y * 19 + 1) * Math.sin(n.z * 21 + 2) * amt); p.setXYZ(i, v.x, v.y, v.z); }
-    geo.computeVertexNormals(); return geo;
+  function leafCanvas(c1, c2, vein) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 512; const g = c.getContext('2d');
+    const path = new Path2D(); path.moveTo(128, 486); path.bezierCurveTo(28, 506, 2, 330, 52, 200); path.bezierCurveTo(82, 120, 116, 50, 128, 8);
+    path.bezierCurveTo(140, 50, 174, 120, 204, 200); path.bezierCurveTo(254, 330, 228, 506, 128, 486);
+    const gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, c1); gr.addColorStop(.5, c2); gr.addColorStop(1, c1);
+    g.fillStyle = gr; g.fill(path); g.save(); g.clip(path);
+    for (let i = 0; i < 700; i++) { g.fillStyle = rand() < .5 ? 'rgba(0,0,0,.06)' : 'rgba(255,255,220,.04)'; g.beginPath(); g.arc(rand() * 256, rand() * 512, 2 + rand() * 12, 0, 6.3); g.fill(); }
+    g.strokeStyle = vein; g.lineWidth = 3.4; g.beginPath(); g.moveTo(128, 488); g.lineTo(128, 10); g.stroke();
+    g.lineWidth = 1.7; for (const k of [-2, -1, 1, 2]) { g.beginPath(); g.moveTo(128, 472); g.quadraticCurveTo(128 + k * 56, 300, 128 + k * 8, 46); g.stroke(); }
+    g.globalAlpha = .4; g.lineWidth = .8; for (let i = 0; i < 60; i++) { const y = 60 + rand() * 400, x = 128 + (rand() - .5) * 170; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rand() - .5) * 26, y - 8 - rand() * 18); g.stroke(); }
+    g.restore(); g.lineWidth = 3; g.strokeStyle = 'rgba(10,20,6,.55)'; g.stroke(path); return c;
   }
+
+  // ---------- geometry helpers ----------
+  function weldNormals(g) { g.computeVertexNormals(); const p = g.attributes.position, n = g.attributes.normal, map = new Map();
+    for (let i = 0; i < p.count; i++) { const k = p.getX(i).toFixed(4) + ',' + p.getY(i).toFixed(4) + ',' + p.getZ(i).toFixed(4); (map.get(k) || map.set(k, []).get(k)).push(i); }
+    for (const ids of map.values()) if (ids.length > 1) { const s = V(0, 0, 0); ids.forEach(i => s.add(V(n.getX(i), n.getY(i), n.getZ(i)))); s.normalize(); ids.forEach(i => n.setXYZ(i, s.x, s.y, s.z)); }
+    return g; }
+  function wrinkled(r, ws, hs, amp, freq) { const g = new T.SphereGeometry(r, ws, hs), p = g.attributes.position, v = V(0, 0, 0);
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = v.clone().normalize(); let s = 0, a = 1, f = freq;
+      for (let o = 0; o < 4; o++) { s += a * (1 - Math.abs(noise3(n.x * f + 11, n.y * f + 5, n.z * f + 3) * 2 - 1)); a *= .5; f *= 2.1; }
+      v.addScaledVector(n, -s * amp); p.setXYZ(i, v.x, v.y, v.z); }
+    return weldNormals(g); }
+  const shadow = (o, c = true, r = true) => { o.castShadow = c; o.receiveShadow = r; return o; };
+  const M = (o) => new T.MeshStandardMaterial(o);
+
+  // ---------- lights & environment ----------
+  const hemi = new T.HemisphereLight(0xd7dde2, 0x2a2018, .4);
+  const key = new T.DirectionalLight(0xffe2b8, 3);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0003; key.shadow.normalBias = .015;
+  const rim = new T.DirectionalLight(0xa9bfff, 1.4);
+  scene.add(hemi, key, key.target, rim, rim.target);
+  { const env = new T.Scene(), eg = new T.BoxGeometry(1, 1, 1);
+    env.add(new T.Mesh(new T.BoxGeometry(30, 30, 30), new T.MeshBasicMaterial({ color: 0x15120e, side: T.BackSide })));
+    const panel = (c, x, y, z, sx, sy, sz) => { const m = new T.Mesh(eg, new T.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); m.scale.set(sx, sy, sz); env.add(m); };
+    panel(new T.Color(4, 3.5, 2.8), -4, 12, 6, 10, .2, 8); panel(new T.Color(.7, .85, 1.3), 12, 4, -6, .2, 6, 10); panel(new T.Color(.5, .42, .32), 0, -12, 0, 20, .2, 20);
+    const pm = new T.PMREMGenerator(R); scene.environment = pm.fromScene(env, .04).texture; }
+
+  // ---------- ground ----------
+  const soilMat = M({ map: tex(soilC, 70, 40), bumpMap: tex(soilC, 70, 40, false), bumpScale: .25, roughness: .95 });
+  const ground = shadow(new T.Mesh(new T.PlaneGeometry(140, 80), soilMat), false); ground.rotation.x = -Math.PI / 2; ground.position.x = 30; scene.add(ground);
+  const concMat = M({ map: tex(concC, 12, 14), bumpMap: tex(concC, 12, 14, false), bumpScale: .08, roughness: .9 });
+  const quay = shadow(new T.Mesh(new T.PlaneGeometry(60, 70), concMat), false); quay.rotation.x = -Math.PI / 2; quay.position.set(72, .006, 0); scene.add(quay);
+
+  // ---------- farm: support trees + vines ----------
+  const leafMat = M({ map: tex(leafCanvas('#1d3a14', '#3b6c28', 'rgba(175,205,125,.55)')), alphaTest: .5, side: T.DoubleSide, roughness: .42 });
+  const litterMat = M({ map: tex(leafCanvas('#3a2313', '#7a5131', 'rgba(150,110,70,.5)')), alphaTest: .5, side: T.DoubleSide, roughness: .9 });
+  const leafGeo = new T.PlaneGeometry(.11, .16, 6, 12); leafGeo.translate(0, .08, 0);
+  { const p = leafGeo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, (x / .055) ** 2 * .012 + (y / .16) ** 2 * .03); }
+    leafGeo.rotateX(Math.PI / 2); leafGeo.computeVertexNormals(); }
+  const barkMat = M({ map: tex(barkC, 2, 5), bumpMap: tex(barkC, 2, 5, false), bumpScale: .35, roughness: .95 });
+  const trunkGeo = new T.CylinderGeometry(.2, .26, 9, 40, 30); trunkGeo.translate(0, 4.5, 0);
+  { const p = trunkGeo.attributes.position, v = V(0, 0, 0); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const a = Math.atan2(v.z, v.x);
+      const k = 1 + .09 * (noise3(Math.cos(a) * 1.5, v.y * .7, Math.sin(a) * 1.5) - .5); p.setXYZ(i, v.x * k, v.y, v.z * k); } weldNormals(trunkGeo); }
+  const stemMat = M({ color: 0x3d4a22, roughness: .7 });
+
+  const _m = new T.Matrix4(), _m2 = new T.Matrix4(), _q = new T.Quaternion(), _e = new T.Euler(0, 0, 0, 'YXZ'), _s = V(1, 1, 1), _p = V(0, 0, 0);
+  const leafMatrix = (L, g) => { _e.set(L.droop, L.yaw, L.roll); _q.setFromEuler(_e); _s.setScalar(L.s * g + 1e-5); return _m.compose(L.p, _q, _s); };
+
+  function vine(cx, cz, H, perStem, segs) {
+    const stems = [], leaves = [];
+    for (let s = 0; s < 3; s++) {
+      const ph = s * 2.1 + rand(), turns = 2.3 + rand() * .6, h = H * (1 - s * .07);
+      const c = new T.Curve(); c.getPoint = (t, o = V(0, 0, 0)) => { const a = ph + t * Math.PI * 2 * turns, r = .235 + .012 * Math.sin(t * 60 + s); return o.set(cx + Math.cos(a) * r, .02 + t * h, cz + Math.sin(a) * r); };
+      const geo = new T.TubeGeometry(c, segs, .011, 5, false); const mesh = shadow(new T.Mesh(geo, stemMat)); scene.add(mesh); stems.push({ mesh, geo, segs, c });
+      for (let i = 0; i < perStem; i++) {
+        const t = Math.min(1, (i + rand() * .7) / perStem), p = c.getPoint(t), ang = Math.atan2(p.x - cx, p.z - cz) + (rand() - .5) * 1.6, d = t < .08 ? .008 + rand() * .02 : .015 + rand() ** 1.6 * .2;
+        leaves.push({ p: V(p.x + Math.sin(ang) * d, p.y + (rand() - .5) * .06, p.z + Math.cos(ang) * d), t, yaw: ang + (rand() - .5) * .8, droop: .25 + rand() * .85, roll: (rand() - .5) * .7, s: (t < .04 ? .55 : .8) + rand() * .45 });
+      }
+    }
+    return { stems, leaves };
+  }
+  const trunks = [[0, 0], [-3, -.4], [3.1, .3], [0, -3.2], [-3, -3.4], [3, -3], [-6, -3.2], [6, -3.4], [-1.5, -6.4], [1.6, -6.2], [-4.6, -6.5], [4.6, -6.3], [-6.2, .2], [6.1, .1]];
+  const trunkMesh = new T.InstancedMesh(trunkGeo, barkMat, trunks.length); shadow(trunkMesh);
+  trunks.forEach(([x, z], i) => trunkMesh.setMatrixAt(i, _m.compose(V(x, 0, z), _q.setFromEuler(_e.set(0, rand() * 6, 0)), _s.set(1, 1, 1))));
+  scene.add(trunkMesh);
+  const main = vine(0, 0, 5, 95, 400);
+  const leavesMain = shadow(new T.InstancedMesh(leafGeo, leafMat, main.leaves.length)); scene.add(leavesMain);
+  const bg = trunks.slice(1).map(([x, z]) => vine(x, z, 4.4 + rand() * .8, 70, 120));
+  const bgLeaves = bg.flatMap(v => v.leaves), leavesBg = shadow(new T.InstancedMesh(leafGeo, leafMat, bgLeaves.length));
+  const tint = new T.Color();
+  bgLeaves.forEach((L, i) => { leavesBg.setMatrixAt(i, leafMatrix(L, 1)); leavesBg.setColorAt(i, tint.setScalar(.75 + rand() * .35)); });
+  main.leaves.forEach((L, i) => leavesMain.setColorAt(i, tint.setScalar(.8 + rand() * .3)));
+  scene.add(leavesBg);
+  const litter = shadow(new T.InstancedMesh(leafGeo, litterMat, 700), false);
+  for (let i = 0; i < 700; i++) { const a = rand() * 6.28, r = .35 + rand() ** .7 * 7;
+    litter.setMatrixAt(i, _m.compose(V(Math.cos(a) * r, .004, Math.sin(a) * r - 1.5), _q.setFromEuler(_e.set(-.02 + rand() * .06, rand() * 6.28, (rand() - .5) * .3)), _s.setScalar(.7 + rand() * .5)));
+    litter.setColorAt(i, tint.setScalar(.6 + rand() * .5)); }
+  scene.add(litter);
 
   // seed
-  const seed = new THREE.Mesh(wrinkle(new THREE.SphereGeometry(.09, 40, 30), .012), M(0x2b1d15, { roughness: .9 }));
-  seed.castShadow = true; scene.add(seed);
+  const seed = shadow(new T.Mesh(wrinkled(.03, 160, 120, .0034, 5), M({ color: 0x2a1c14, roughness: .55 })));
+  const seedHome = V(.55, .8, .45), seedBed = V(.25, .03, .04); scene.add(seed);
 
-  // support pole
-  const poleGeo = new THREE.CylinderGeometry(.12, .16, 6, 14); poleGeo.translate(0, 3, 0);
-  const pole = new THREE.Mesh(poleGeo, M(0x6b4a2e, { roughness: 1 })); pole.castShadow = true; scene.add(pole);
-
-  // vine: a helix around the pole, revealed with drawRange
-  class Helix extends THREE.Curve {
-    getPoint(t, v = new THREE.Vector3()) { const a = t * Math.PI * 2 * 3.2, r = .2 + .03 * Math.sin(t * 40);
-      return v.set(Math.cos(a) * r, t * 5.6 + .05, Math.sin(a) * r); }
-  }
-  const helix = new Helix();
-  const vineGeo = new THREE.TubeGeometry(helix, 700, .028, 6, false), vineTotal = vineGeo.index.count;
-  const vine = new THREE.Mesh(vineGeo, M(0x3d7330, { roughness: .6 })); vine.castShadow = true; scene.add(vine);
-  seed.position.copy(helix.getPoint(0)).setY(.06);
-
-  // heart-shaped leaves
-  const ls = new THREE.Shape(); ls.moveTo(0, 0);
-  ls.bezierCurveTo(.34, .1, .3, .55, 0, .9); ls.bezierCurveTo(-.3, .55, -.34, .1, 0, 0);
-  const leafGeo = new THREE.ShapeGeometry(ls, 10); leafGeo.rotateX(Math.PI / 2 + .45);
-  const leafMat = M(0x2f7d32, { side: THREE.DoubleSide, roughness: .5 });
-  const leaves = [];
-  for (let i = 0; i < 52; i++) {
-    const t = .015 + i / 52 * .97, p = helix.getPoint(t), m = new THREE.Mesh(leafGeo, leafMat);
-    m.position.copy(p); m.rotation.y = Math.atan2(p.x, p.z) + rnd(-.6, .6); m.castShadow = true;
-    scene.add(m); leaves.push({ m, t, s: rnd(.4, .6) * (t < .08 ? .7 : 1) });
-  }
-
-  // fruit spikes (hanging catkins of berries)
-  const berryGeo = new THREE.SphereGeometry(.034, 10, 8), berryMat = M(0x5aa02c, { roughness: .35 });
-  const stalkGeo = new THREE.CylinderGeometry(.006, .006, .6, 4); stalkGeo.translate(0, -.28, 0);
-  const stalkMat = M(0x4b7a2a);
-  const basketPos = V(1.5, 0, 1.1), spikes = [];
-  for (let j = 0; j < 16; j++) {
-    const t = .25 + j / 16 * .7, p = helix.getPoint(t), out = V(p.x, 0, p.z).normalize();
-    const g = new THREE.Group(); g.add(new THREE.Mesh(stalkGeo, stalkMat));
-    for (let k = 0; k < 18; k++) { const b = new THREE.Mesh(berryGeo, berryMat);
-      b.position.set(Math.sin(k * 2.3) * .024, -k * .03, Math.cos(k * 2.3) * .024); b.scale.setScalar(1 - k / 34); g.add(b); }
-    const home = p.clone().addScaledVector(out, .17);
-    const a = rnd(0, 6.28), r = rnd(0, .22);
-    const dest = basketPos.clone().add(V(Math.cos(a) * r, .12 + j * .012, Math.sin(a) * r));
-    g.position.copy(home); scene.add(g); spikes.push({ g, home, dest, j, spin: rnd(-1, 1) });
-  }
+  // fruit spikes (hanging catkins)
+  const BER = 44, berryGeo = new T.SphereGeometry(1, 12, 10);
+  const spikeSrc = main.leaves.filter((L, i) => L.t > .22 && i % 4 === 0);
+  const berries = shadow(new T.InstancedMesh(berryGeo, new T.MeshPhysicalMaterial({ roughness: .3, clearcoat: .6, clearcoatRoughness: .25 }), spikeSrc.length * BER));
+  const stalkGeo = new T.CylinderGeometry(.0017, .0017, 1, 5); stalkGeo.translate(0, -.5, 0);
+  const stalks = shadow(new T.InstancedMesh(stalkGeo, stemMat, spikeSrc.length));
+  const basketPos = V(.95, 0, .75);
+  const spikes = spikeSrc.map((L, j) => {
+    const len = .12 + rand() * .06, a = rand() * 6.28, r = Math.sqrt(rand()) * .07;
+    const locals = []; for (let k = 0; k < BER; k++) { const f = k / BER, an = k * 2.4, rad = .0098 * (1 - .35 * f);
+      locals.push(new T.Matrix4().compose(V(Math.cos(an) * rad, -.008 - f * len, Math.sin(an) * rad), new T.Quaternion(), V(1, 1, 1).setScalar(.0088 * (1 - .3 * f)))); }
+    return { home: L.p.clone().add(V(0, -.012, 0)), dest: V(basketPos.x + Math.cos(a) * r, .05 + j * .0025, basketPos.z + Math.sin(a) * r),
+      q: new T.Quaternion().setFromEuler(new T.Euler((rand() - .5) * .35, rand() * 6.28, (rand() - .5) * .35, 'YXZ')),
+      qd: new T.Quaternion().setFromEuler(new T.Euler(Math.PI / 2 + (rand() - .5) * .4, rand() * 6.28, 0, 'YXZ')),
+      stalk: new T.Matrix4().makeScale(1, len + .012, 1), locals, o: rand(), rr: Array.from({ length: BER }, () => rand()), gv: Array.from({ length: BER }, () => rand()) };
+  });
+  scene.add(berries, stalks);
+  const G0 = new T.Color(0x35591a), G1 = new T.Color(0x5e8526), Y = new T.Color(0x9a9a2a), RED = new T.Color(0xa3231a);
 
   // basket
-  const basket = new THREE.Group();
-  const bmat = M(0xa8793f, { side: THREE.DoubleSide, roughness: 1 });
-  basket.add(new THREE.Mesh(new THREE.CylinderGeometry(.45, .33, .38, 24, 1, true), bmat));
-  const bb = new THREE.Mesh(new THREE.CircleGeometry(.33, 24), bmat); bb.rotation.x = -Math.PI / 2; bb.position.y = -.18; basket.add(bb);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(.45, .025, 6, 32), M(0x7d5528)); rim.rotation.x = Math.PI / 2; rim.position.y = .19; basket.add(rim);
-  basket.position.copy(basketPos).setY(.19); basket.children.forEach(c => c.castShadow = true); scene.add(basket);
+  const basketMat = M({ map: tex(weave(22, rgb(0xb8975e), rgb(0x5a4024)), 5, 1), side: T.DoubleSide, roughness: .9 });
+  const basket = new T.Group(); basket.position.copy(basketPos);
+  basket.add(shadow(new T.Mesh(new T.CylinderGeometry(.27, .21, .26, 48, 1, true), basketMat)));
+  const bb = shadow(new T.Mesh(new T.CircleGeometry(.21, 32), basketMat)); bb.rotation.x = -Math.PI / 2; bb.position.y = -.125; basket.add(bb);
+  const rimT = shadow(new T.Mesh(new T.TorusGeometry(.27, .012, 8, 48), M({ color: 0x6d4f2c, roughness: .8 }))); rimT.rotation.x = Math.PI / 2; rimT.position.y = .13; basket.add(rimT);
+  basket.position.y = .13; scene.add(basket);
 
-  // drying yard at x = 20
-  const DRY = V(20, 0, 0);
-  const mat = new THREE.Mesh(new THREE.BoxGeometry(5.2, .04, 3.6), M(0x8f6d42, { roughness: 1 }));
-  mat.position.copy(DRY).setY(.02); mat.receiveShadow = true; scene.add(mat);
-  const dryMat = M(0xa8321f, { roughness: .9 }), N = 900;
-  const corns = new THREE.InstancedMesh(wrinkle(new THREE.SphereGeometry(.05, 14, 10), .008), dryMat, N);
-  corns.castShadow = true; scene.add(corns);
-  const pile = [], spread = [];
-  for (let i = 0; i < N; i++) {
-    const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * .55;
-    pile.push(V(DRY.x + Math.cos(a) * r, .08 + (.55 - r) * .9 * Math.random(), Math.sin(a) * r));
-    spread.push(V(DRY.x + rnd(-2.4, 2.4), .085, rnd(-1.6, 1.6)));
-  }
-  const dummy = new THREE.Object3D();
-  const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.4, 32, 16), new THREE.MeshBasicMaterial({ color: 0xffd36b, fog: false }));
-  sunBall.position.set(28, 12, -16); scene.add(sunBall);
-  // rake
-  const rake = new THREE.Group();
-  const rh = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 2), M(0x7b5530)); rh.rotation.z = 1.1; rh.position.set(-.8, .45, 0); rake.add(rh);
-  rake.add(new THREE.Mesh(new THREE.BoxGeometry(.06, .08, .8), M(0x7b5530)));
-  rake.position.set(DRY.x + 1.5, .06, 1.2); scene.add(rake);
+  // ---------- drying yard ----------
+  const DRY = V(30, 0, 0);
+  const pad = shadow(new T.Mesh(new T.BoxGeometry(7, .06, 5.5), concMat), false, true); pad.position.set(DRY.x, .03, 0); scene.add(pad);
+  const mat = shadow(new T.Mesh(new T.BoxGeometry(2.8, .012, 2), M({ map: tex(matC, 4, 3), bumpMap: tex(matC, 4, 3, false), bumpScale: .2, roughness: .95 })), false, true);
+  mat.position.set(DRY.x, .066, 0); scene.add(mat);
+  const NC = 6000, corns = shadow(new T.InstancedMesh(wrinkled(.0125, 18, 12, .0015, 5), M({ roughness: .7 }), NC)); scene.add(corns);
+  const pile = [], spread = [], cr = [], cFresh = [], cDry = [];
+  for (let i = 0; i < NC; i++) { const a = rand() * 6.28, r = Math.sqrt(rand()) * .55;
+    pile.push(V(DRY.x + Math.cos(a) * r - .6, .09 + (.55 - r) / .55 * .3 * Math.sqrt(rand()), Math.sin(a) * r));
+    spread.push(V(DRY.x + (rand() - .5) * 2.65, .084, (rand() - .5) * 1.85)); cr.push(V(rand() * 6, rand() * 6, rand() * 6));
+    cFresh.push(new T.Color().lerpColors(new T.Color(0x415e1f), new T.Color(0x6e2a17), rand())); cDry.push(new T.Color().lerpColors(new T.Color(0x140d09), new T.Color(0x3a2a1e), rand())); }
 
-  // port + ship at x ~ 40
-  const dock = new THREE.Mesh(new THREE.BoxGeometry(3, .5, 3.4), M(0x7d6044)); dock.position.set(37.6, .25, 0); dock.receiveShadow = true; scene.add(dock);
-  const ship = new THREE.Group(), SHIP = V(42.2, 0, 0); ship.position.copy(SHIP); scene.add(ship);
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1, 1.8), M(0x7b2d26)); hull.position.y = .3; ship.add(hull);
-  const bow = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, 1, 3, 1, false, 0, Math.PI), M(0x7b2d26));
-  bow.rotation.y = Math.PI / 2; bow.scale.set(1, 1, .9); bow.position.set(2.7, .3, 0); ship.add(bow);
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(5.4, .06, 1.8), M(0x9b7b55)); deck.position.y = .82; ship.add(deck);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1, .9, 1.4), M(0xf2efe8)); cabin.position.set(-2.1, 1.3, 0); ship.add(cabin);
-  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, .7, 12), M(0xc08a2d)); funnel.position.set(-2.2, 2, 0); ship.add(funnel);
-  [0x2f6b8f, 0x3d7330, 0xc08a2d].forEach((c, i) => { const b = new THREE.Mesh(new THREE.BoxGeometry(.9, .5, .55), M(c)); b.position.set(2.1, 1.1, (i - 1) * .58); ship.add(b); });
-  ship.traverse(o => o.castShadow = true);
-  const sackGeo = new THREE.CylinderGeometry(.19, .22, .42, 12), sackMat = M(0xc9a46a, { roughness: 1 }), sacks = [];
-  for (let i = 0; i < 15; i++) {
-    const s = new THREE.Mesh(sackGeo, sackMat); s.castShadow = true;
-    const from = V(37.6 - SHIP.x + (i % 3 - 1) * .5, .71 + Math.floor(i / 9) * .42, (Math.floor(i / 3) % 3 - 1) * .5);
-    const to = V(-1.3 + (i % 5) * .5, 1.06, (Math.floor(i / 5) - 1) * .5);
-    ship.add(s); sacks.push({ s, from, to, i });
-  }
+  // ---------- port: container being stuffed ----------
+  const PORT = V(60, 0, 0), CL = 6.06, CH = 2.59, CW = 2.44;
+  const corr = (rx, color) => M({ map: tex(corrC, rx, 1), bumpMap: tex(corrC, rx, 1, false), bumpScale: .12, color, roughness: .68, metalness: .2 });
+  const red = 0x8c3124, wallMat = corr(2.6, red), endMat = corr(1, red), frameMat = M({ color: 0x5e2219, roughness: .6, metalness: .4 });
+  const cont = new T.Group(); cont.position.copy(PORT); scene.add(cont);
+  const add = (g, m, x, y, z, parent = cont) => { const o = shadow(new T.Mesh(g, m)); o.position.set(x, y, z); parent.add(o); return o; };
+  add(new T.BoxGeometry(CL, .16, CW), M({ map: tex(plankC, 1, 4), roughness: .85 }), 0, .08, 0);
+  add(new T.BoxGeometry(CL, .04, CW), wallMat, 0, CH - .02, 0);
+  add(new T.BoxGeometry(CL, CH, .04), wallMat, 0, CH / 2, CW / 2 - .02);
+  add(new T.BoxGeometry(CL, CH, .04), wallMat, 0, CH / 2, -CW / 2 + .02);
+  add(new T.BoxGeometry(.04, CH, CW), endMat, -CL / 2 + .02, CH / 2, 0);
+  for (const [x, z] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) add(new T.BoxGeometry(.14, CH, .14), frameMat, x * (CL / 2 - .07), CH / 2, z * (CW / 2 - .07));
+  for (const y of [.07, CH - .07]) for (const z of [-1, 1]) add(new T.BoxGeometry(CL, .14, .12), frameMat, 0, y, z * (CW / 2 - .06));
+  add(new T.BoxGeometry(.16, .22, CW), frameMat, CL / 2 - .08, CH - .11, 0); add(new T.BoxGeometry(.16, .14, CW), frameMat, CL / 2 - .08, .07, 0);
+  { const c = document.createElement('canvas'); c.width = 1024; c.height = 320; const g = c.getContext('2d'); g.fillStyle = '#efe9df';
+    g.font = '600 92px "Helvetica Neue",Arial,sans-serif'; g.fillText('SRXU 204718 5', 20, 110); g.font = '500 64px "Helvetica Neue",Arial,sans-serif'; g.fillText('22G1', 20, 200);
+    g.font = '500 34px "Helvetica Neue",Arial,sans-serif'; g.fillText('MAX GROSS  30,480 KG   TARE  2,200 KG', 20, 280);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    const decal = new T.Mesh(new T.PlaneGeometry(2.2, .69), new T.MeshStandardMaterial({ map: t, transparent: true, roughness: .7, polygonOffset: true, polygonOffsetFactor: -2 }));
+    decal.position.set(CL / 2 - 1.45, CH - .62, CW / 2 + .012); cont.add(decal); }
+  const doorMat = corr(.5, red), barMat = M({ color: 0x9a9a96, metalness: .8, roughness: .35 });
+  const doors = [1, -1].map(side => { const pivot = new T.Group(); pivot.position.set(CL / 2, 0, side * (CW / 2 - .02)); cont.add(pivot);
+    add(new T.BoxGeometry(.05, CH - .3, CW / 2 - .03), doorMat, 0, CH / 2, -side * (CW / 4 - .01), pivot);
+    for (const z of [.28, .78]) add(new T.CylinderGeometry(.016, .016, CH - .4, 8), barMat, .045, CH / 2, -side * z, pivot);
+    return { pivot, side }; });
+  add(new T.BoxGeometry(1.9, .14, 1.3), M({ map: tex(plankC, 1, 2), roughness: .9 }), 4.75, .07, 2.1);
+  const juteMat = M({ map: tex(juteC, 1, 1), bumpMap: tex(juteC, 1, 1, false), bumpScale: .15, roughness: 1 });
+  const top = document.createElement('canvas'); top.width = 512; top.height = 320; { const g = top.getContext('2d'); g.drawImage(juteC, 0, 0, 512, 320);
+    g.fillStyle = 'rgba(32,22,16,.8)'; g.textAlign = 'center'; g.font = '700 50px "Courier New",monospace'; g.fillText('BLACK PEPPER', 256, 118);
+    g.font = '700 30px "Courier New",monospace'; g.fillText('GRADE 550 G/L', 256, 172); g.fillText('NET WT 50 KG', 256, 212);
+    g.font = '700 22px "Courier New",monospace'; g.fillText('SPICE ROUTE EXPORTS', 256, 266); }
+  const juteTop = M({ map: tex(top), bumpMap: tex(juteC, 1, 1, false), bumpScale: .15, roughness: 1 });
+  const sackGeo = new T.BoxGeometry(1, 1, 1, 10, 6, 8);
+  { const p = sackGeo.attributes.position, v = V(0, 0, 0); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = v.clone().normalize().multiplyScalar(.62); v.lerp(n, .55);
+      p.setXYZ(i, v.x * .9, v.y * .3, v.z * .55); } weldNormals(sackGeo); }
+  const sacks = [];
+  for (let i = 0; i < 24; i++) { const s = shadow(new T.Mesh(sackGeo, [juteMat, juteMat, juteTop, juteMat, juteMat, juteMat])); cont.add(s);
+    const slot = 23 - i, L = Math.floor(slot / 6), j = slot % 6;
+    const from = V(4.3 + (j % 2) * .9, .14 + .15 + L * .27, 1.62 + Math.floor(j / 2) * .48);
+    const L2 = Math.floor(i / 6), j2 = i % 6;
+    const to = V(2.5 - Math.floor(j2 / 2) * .6, .16 + .15 + L2 * .27, (j2 % 2 ? 1 : -1) * .52);
+    sacks.push({ s, from, to, i, yaw: (rand() - .5) * .12 }); }
+  // yard stacks
+  const yardMat = M({ map: tex(corrC, 2.6, 1), bumpMap: tex(corrC, 2.6, 1, false), bumpScale: .3, roughness: .6, metalness: .3 });
+  const cols = [0x8c3124, 0x22374d, 0x3b5a46, 0x8b6a2c, 0x5a5e66, 0x6d2c3a, 0x2f4f6e].map(c => new T.Color(c)), slots = [];
+  for (const z of [-9, -11.6, -14.2, -16.8, -19.4, -22]) for (const x of [44, 50.5, 57, 63.5, 70, 76.5, 83]) { const h = 1 + Math.floor(rand() * 4); for (let y = 0; y < h; y++) slots.push([x, y * 2.6 + 1.3, z]); }
+  const yard = shadow(new T.InstancedMesh(new T.BoxGeometry(CL, CH, CW), yardMat, slots.length));
+  slots.forEach(([x, y, z], i) => { yard.setMatrixAt(i, _m.makeTranslation(x, y, z)); yard.setColorAt(i, cols[Math.floor(rand() * cols.length)]); }); scene.add(yard);
+  const lampMat = new T.MeshBasicMaterial({ color: new T.Color(4, 3, 1.6) });
+  for (const [x, z] of [[47, 5], [68, -5.5], [86, 5.5]]) { add(new T.CylinderGeometry(.14, .2, 22, 10), barMat, x, 11, z, scene); add(new T.BoxGeometry(1.6, .3, .6), lampMat, x, 22, z, scene); }
 
-  // ---------- scroll-driven timeline ----------
-  // camera keyframes, one per section: [position, lookAt, subject shift (+1 = subject on right)]
-  const K = [
-    [V(.95, 1.35, 1.35), V(.2, 1.12, 0), 1],
-    [V(.75, .38, 1.0), V(.2, .05, 0), -1],
-    [V(1.4, .95, 2.0), V(.1, .35, 0), 1],
-    [V(4.6, 3.3, 6.8), V(0, 2.7, 0), -1],
-    [V(1.9, 4.3, 2.7), V(.1, 3.6, 0), 1],
-    [V(3.4, 1.9, 4.4), V(.8, .9, .5), -1],
-    [V(DRY.x - 1.5, 5.2, 7.2), V(DRY.x + .6, 0, 0), .8],
-    [V(38.4, 6.2, 11.5), V(40.2, .5, 0), -1],
-    [V(45, 7.5, 17), V(50, 0, 0), 0]
-  ];
-  const sky = [[0, 0xf3ead8], [3, 0xdbeedb], [5.5, 0xfbe7bc], [7.2, 0xf6d2ae], [8.5, 0xf2b98f]].map(([t, c]) => [t, new THREE.Color(c)]);
-  const green = new THREE.Color(0x5aa02c), red = new THREE.Color(0xb3301e), black = new THREE.Color(0x1f1410), tmp = new THREE.Color();
-  const camPos = V(), camLook = V();
-  let target = 0, cur = 0, mx = 0, my = 0, W = 1, H = 1, mobile = false, lastDry = -1;
-
-  addEventListener('scroll', () => { target = scrollY / innerHeight; }, { passive: true });
+  // ---------- timeline ----------
+  const K = [ // camera position, look-at — one per section
+    [V(.3, .95, 1.05), V(.55, .8, .45)],
+    [V(.56, .2, .42), V(.25, .04, .04)],
+    [V(.9, .55, 1.05), V(.2, .3, .05)],
+    [V(3.4, 2.5, 4.6), V(0, 2.3, 0)],
+    [V(.95, 2.9, 1.25), V(.15, 2.75, .15)],
+    [V(1.9, 1.25, 2.4), V(.75, .35, .55)],
+    [V(31.4, 1.5, 2.2), V(30.1, 0, 0)],
+    [V(67.8, 2.2, 5.6), V(62.4, 1.2, .5)],
+    [V(71, 7.5, 14), V(61, .6, -2.5)]];
+  const ATM = [ // t, background/fog, key colour, key intensity, hemi, fog density, shadow extent
+    [0, 0x0c0b09, 0xffe2b8, 3.2, .3, .14, 2.5], [2, 0x0d100b, 0xfff0d0, 3, .4, .11, 2.5], [4, 0x0f120c, 0xffe6c0, 3.2, .45, .09, 3.5],
+    [5.5, 0x15110b, 0xffd49a, 4.2, .55, .08, 3.5], [6.5, 0x15110b, 0xffd49a, 4.4, .55, .08, 3.5], [7, 0x0b0e12, 0xe4ecff, 2.8, .5, .05, 7], [8.6, 0x0b0f15, 0xd6e0ff, 3.4, .75, .03, 16]];
+  const cA = new T.Color(), cB = new T.Color(), camLook = V(0, 0, 0);
+  let target = 0, cur = 0, W = 1, H = 1, mobile = false, mx = 0, my = 0, last = -1, extent = 0;
+  const read = () => { target = scrollY / innerHeight; };
+  addEventListener('scroll', read, { passive: true });
   addEventListener('pointermove', e => { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; });
-  function resize() { W = innerWidth; H = innerHeight; mobile = W < 760; renderer.setSize(W, H, false);
-    camera.aspect = W / H; camera.fov = W < H ? 58 : 42; camera.updateProjectionMatrix(); }
-  addEventListener('resize', resize); resize(); target = scrollY / innerHeight;
+  function resize() { W = innerWidth; H = innerHeight; mobile = W < 760; R.setSize(W, H, false); camera.aspect = W / H; camera.fov = W < H ? 52 : 38; camera.updateProjectionMatrix(); }
+  addEventListener('resize', resize); resize(); read(); cur = target;
 
   function update(t, time) {
     // camera
     const i = Math.min(Math.floor(t), K.length - 2), k = ease(clamp(t - i)), a = K[i], b = K[i + 1];
-    camPos.lerpVectors(a[0], b[0], k); camLook.lerpVectors(a[1], b[1], k);
-    camera.position.copy(camPos).add(V(mx * .25, -my * .15, 0)); camera.lookAt(camLook);
-    const shift = lerp(a[2], b[2], k);
-    if (mobile) camera.setViewOffset(W, H, 0, H * .16, W, H); else camera.setViewOffset(W, H, -W * .17 * shift, 0, W, H);
-    sun.target.position.copy(camLook); sun.position.copy(camLook).add(V(5, 11, 6));
+    camera.position.lerpVectors(a[0], b[0], k); camLook.lerpVectors(a[1], b[1], k);
+    const d = camera.position.distanceTo(camLook);
+    camera.position.x += mx * .04 * d; camera.position.y -= my * .025 * d; camera.lookAt(camLook);
+    if (mobile) camera.setViewOffset(W, H, 0, H * .2, W, H); else camera.setViewOffset(W, H, -W * .16, 0, W, H);
 
-    // sky
-    let s = 0; while (s < sky.length - 2 && t > sky[s + 1][0]) s++;
-    tmp.copy(sky[s][1]).lerp(sky[s + 1][1], clamp((t - sky[s][0]) / (sky[s + 1][0] - sky[s][0])));
-    scene.background.copy(tmp); scene.fog.color.copy(tmp);
+    // atmosphere
+    let s = 0; while (s < ATM.length - 2 && t > ATM[s + 1][0]) s++;
+    const A = ATM[s], B = ATM[s + 1], q = clamp((t - A[0]) / (B[0] - A[0]));
+    scene.background.copy(cA.setHex(A[1])).lerp(cB.setHex(B[1]), q); scene.fog.color.copy(scene.background); scene.fog.density = lerp(A[5], B[5], q);
+    key.color.copy(cA.setHex(A[2])).lerp(cB.setHex(B[2]), q); key.intensity = lerp(A[3], B[3], q); hemi.intensity = lerp(A[4], B[4], q);
+    key.target.position.copy(camLook); key.position.copy(camLook).add(V(-4, 7, 5));
+    rim.target.position.copy(camLook); rim.position.copy(camLook).add(V(4, 3, -6));
+    const ext = lerp(A[6], B[6], q); if (Math.abs(ext - extent) > .01) { extent = ext; Object.assign(key.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: .5, far: ext * 6 + 10 }); key.shadow.camera.updateProjectionMatrix(); }
 
-    // seed falls and settles into soil
+    // seed falls into the soil
     const f = ease(range(t, 0, 1));
-    seed.position.y = lerp(1.12, .06, f) + (1 - f) * Math.sin(time * 1.5) * .03;
-    seed.scale.setScalar(lerp(2, 1, f)); seed.rotation.set(time * .3 * (1 - f), time * .5 * (1 - f), 0);
-    seed.visible = t < 2.4;
+    seed.position.lerpVectors(seedHome, seedBed, f); seed.position.y += (1 - f) * Math.sin(time * 1.2) * .012;
+    seed.scale.setScalar(lerp(2.2, 1, f)); seed.rotation.set(time * .15 * (1 - f) + .4, time * .25 * (1 - f), 0); seed.visible = t < 2.3;
+
+    if (Math.abs(t - last) < 1e-5) return; last = t;
 
     // vine growth
-    const grow = t < 2 ? .1 * ease(range(t, 1.1, 2)) : lerp(.1, 1, ease(range(t, 2, 3.2)));
-    vineGeo.setDrawRange(0, Math.floor(grow * vineTotal / 6) * 6); vine.visible = grow > 0;
-    pole.scale.y = Math.max(.001, ease(range(t, 1.8, 2.7))); pole.visible = t > 1.8;
-    for (const l of leaves) { const g = ease(clamp((grow - l.t) / .05)); l.m.visible = g > 0;
-      l.m.scale.setScalar(g * l.s + 1e-4); l.m.rotation.z = Math.sin(time * 1.3 + l.t * 30) * .06; }
+    const grow = t < 2 ? .06 * ease(range(t, 1.05, 2)) : lerp(.06, 1, ease(range(t, 2, 3.15)));
+    for (const st of main.stems) { st.geo.setDrawRange(0, Math.floor(grow * st.segs) * 30); st.mesh.visible = grow > 0; }
+    main.leaves.forEach((L, i) => leavesMain.setMatrixAt(i, leafMatrix(L, ease(clamp((grow - L.t) / .035)))));
+    leavesMain.instanceMatrix.needsUpdate = true;
 
-    // berries appear, ripen, then are harvested into the basket
-    berryMat.color.copy(green).lerp(red, ease(range(t, 3.9, 4.7)) * .85);
-    for (const sp of spikes) {
-      const g = ease(range(t, 3.25 + sp.j * .02, 3.9 + sp.j * .02)), h = ease(range(t, 4.55 + sp.j * .03, 5.15 + sp.j * .03));
-      sp.g.visible = g > 0; sp.g.scale.setScalar(g + 1e-4);
-      sp.g.position.lerpVectors(sp.home, sp.dest, h); sp.g.position.y += Math.sin(h * Math.PI) * .6;
-      sp.g.rotation.set(h * 1.4, sp.spin * h, h * 1.5 + (1 - h) * Math.sin(time + sp.j) * .05);
-    }
+    // spikes: appear, ripen, harvested into the basket
+    const ripe = range(t, 3.85, 4.7);
+    spikes.forEach((S, j) => {
+      const g = ease(range(t, 3.2 + S.o * .5, 3.75 + S.o * .5)), h = ease(range(t, 4.55 + S.o * .55, 5.05 + S.o * .55));
+      _p.lerpVectors(S.home, S.dest, h); _p.y += Math.sin(h * Math.PI) * .45; _q.copy(S.q).slerp(S.qd, h);
+      _m.compose(_p, _q, _s.setScalar(g + 1e-5)); stalks.setMatrixAt(j, _m2.multiplyMatrices(_m, S.stalk));
+      for (let k = 0; k < BER; k++) { berries.setMatrixAt(j * BER + k, _m2.multiplyMatrices(_m, S.locals[k]));
+        berries.setColorAt(j * BER + k, cA.lerpColors(G0, G1, S.gv[k]).lerp(Y, ripe * .3).lerp(RED, clamp((ripe * .5 - S.rr[k]) * 7))); }
+    });
+    stalks.instanceMatrix.needsUpdate = berries.instanceMatrix.needsUpdate = berries.instanceColor.needsUpdate = true;
 
-    // drying: pile spreads out on the mat, then red -> black in the sun
-    const sp = ease(range(t, 5.3, 6)), dk = ease(range(t, 5.8, 6.8));
-    dryMat.color.copy(red).lerp(green, .25).lerp(black, dk);
-    if (Math.abs(sp - lastDry) > 1e-4) { lastDry = sp;
-      for (let i = 0; i < N; i++) { dummy.position.lerpVectors(pile[i], spread[i], sp); dummy.rotation.set(i, i * 2, 0);
-        dummy.scale.setScalar(lerp(1, .82, dk)); dummy.updateMatrix(); corns.setMatrixAt(i, dummy.matrix); }
-      corns.instanceMatrix.needsUpdate = true; }
-    rake.position.x = DRY.x + 1.5 - Math.sin(sp * Math.PI) * 2.5;
-    sun.intensity = .9 + .4 * Math.sin(range(t, 5.3, 7) * Math.PI);
+    // drying: heap is raked flat, then the berries darken and shrink
+    const sp = ease(range(t, 5.25, 5.95)), dk = range(t, 5.35, 6.35);
+    for (let n = 0; n < NC; n++) { _p.lerpVectors(pile[n], spread[n], sp); const dn = ease(clamp(dk * 1.4 - cr[n].x / 6 * .4));
+      corns.setMatrixAt(n, _m.compose(_p, _q.setFromEuler(_e.set(cr[n].x, cr[n].y, cr[n].z)), _s.setScalar(lerp(1, .84, dn))));
+      corns.setColorAt(n, cA.copy(cFresh[n]).lerp(cDry[n], dn)); }
+    corns.instanceMatrix.needsUpdate = corns.instanceColor.needsUpdate = true;
 
-    // export: sacks swing from dock onto the ship, then it sails
-    for (const o of sacks) { const q = ease(range(t, 6.55 + o.i * .045, 6.85 + o.i * .045));
-      o.s.position.lerpVectors(o.from, o.to, q); o.s.position.y += Math.sin(q * Math.PI) * 1.2; }
-    const sail = ease(range(t, 7.35, 8.4));
-    ship.position.set(SHIP.x + sail * 9, Math.sin(time * 1.4) * .04, sail * -2);
-    ship.rotation.set(Math.sin(time * 1.1) * .02, sail * .18, Math.sin(time * .9) * .015);
+    // export: sacks carried from the pallet into the container, then the doors close
+    for (const o of sacks) { const u = ease(range(t, 6.45 + o.i * .028, 6.7 + o.i * .028));
+      o.s.position.lerpVectors(o.from, o.to, u); o.s.position.y += Math.sin(u * Math.PI) * .5; o.s.rotation.set(0, lerp(0, Math.PI / 2, u) + o.yaw, 0); }
+    const shut = ease(range(t, 7.45, 7.95));
+    for (const D of doors) D.pivot.rotation.y = D.side * lerp(-1.78, 0, shut);
   }
 
-  const clock = new THREE.Clock();
+  const clock = new T.Clock(); let shown = false;
   (function loop() {
     requestAnimationFrame(loop);
-    cur += (target - cur) * .08;
+    cur = reduce ? target : cur + (target - cur) * .075;
     const t = clamp(cur, 0, 8.6);
     update(t, clock.getElapsedTime());
+    R.render(scene, camera);
+    if (!shown) { shown = true; canvas.classList.add('ready'); }
     const idx = Math.round(clamp(cur, 0, stages.length - 1));
-    [...dots.children].forEach((d, i) => d.classList.toggle('on', i === idx));
-    dots.style.opacity = cur > stages.length - .5 ? 0 : 1;
-    renderer.render(scene, camera);
+    [...rail.querySelectorAll('a')].forEach((el, i) => el.classList.toggle('on', i === idx));
+    const past = clamp(cur - (stages.length - 1) + .3);
+    rail.style.opacity = 1 - past; scrim.style.opacity = 1 - past * .5;
   })();
 }
 </script>
