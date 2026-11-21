@@ -1,13 +1,10 @@
-# Spice Route Exports — website
+# Portlance Exports — website
 
 A single static page: `index.html` plus `vendor/three.min.js` (the 3D library, bundled so the site
 does not depend on an outside CDN). No build step and no server code.
 
 ## Before going live
-Search `index.html` for these and replace them:
-- `Spice Route` / `Spice Route Exports` — business name
-- `+00 00000 00000`, `sales@example.com` (appears twice), `Your address here` — contact details
-- Product table and stage facts — confirm grades, packing and figures match what you sell
+Add a phone / WhatsApp number and address to the contact section in `index.html` if you want them shown.
 
 ## Put it online (pick one)
 - **Netlify Drop** — go to app.netlify.com/drop and drag the `spices-website` folder in. Free, about a minute.
