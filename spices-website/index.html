@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spice Route Exports — Premium Black Pepper Exporters &amp; Wholesalers</title>
+<meta name="description" content="Farm-direct black pepper and spices for export and wholesale. Follow the journey from seed to shipment.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#221c16;--muted:#6b5d4f;--cream:#f7f1e6;--paper:#fffaf1;--gold:#c08a2d;--leaf:#2f6b3a;--pepper:#2a1f1a;--red:#a8321f}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--cream);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Playfair Display",Georgia,serif;line-height:1.15}
+a{color:inherit}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+
+header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:14px 5vw;background:linear-gradient(rgba(247,241,230,.9),rgba(247,241,230,0))}
+.logo{font-family:"Playfair Display",serif;font-weight:700;font-size:1.25rem;text-decoration:none;display:flex;align-items:center;gap:10px}
+.logo i{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#5a463a,#120c08);box-shadow:inset -3px -3px 6px rgba(0,0,0,.5)}
+header nav a{text-decoration:none;margin-left:22px;font-weight:500;font-size:.95rem}
+.btn{display:inline-block;padding:12px 22px;border-radius:999px;background:var(--pepper);color:#fff;text-decoration:none;font-weight:600;border:0;cursor:pointer;font:inherit;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+header .btn{padding:9px 18px;margin-left:22px}
+
+.stage{min-height:100vh;display:flex;align-items:center;padding:0 7vw;position:relative;z-index:1}
+.stage.right{justify-content:flex-end}
+.stage.center{justify-content:center;text-align:center}
+.card{max-width:430px;background:rgba(255,250,241,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:22px;padding:30px 32px;box-shadow:0 20px 50px rgba(60,40,20,.12);opacity:0;transform:translateY(40px);transition:opacity .8s,transform .8s}
+.card.in{opacity:1;transform:none}
+.step{font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:8px}
+.card h2{font-size:2.1rem;margin-bottom:12px}
+.card p{color:var(--muted)}
+.card .fact{margin-top:16px;padding-top:14px;border-top:1px solid rgba(0,0,0,.08);font-size:.9rem;color:var(--ink)}
+.hero .card{max-width:520px;background:rgba(255,250,241,.7)}
+.hero h1{font-size:clamp(2.4rem,5vw,3.8rem);margin-bottom:14px}
+.hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
+.scrollhint{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);animation:bob 2s infinite}
+@keyframes bob{50%{transform:translate(-50%,8px)}}
+
+#dots{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:12px;transition:opacity .4s}
+#dots a{display:block;width:10px;height:10px;border-radius:50%;background:rgba(34,28,22,.25);position:relative}
+#dots a.on{background:var(--gold);transform:scale(1.4)}
+#dots a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.75rem;background:var(--paper);padding:2px 8px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none}
+#dots a:hover span,#dots a.on span{opacity:1}
+
+.solid{position:relative;z-index:2;background:var(--cream);padding:100px 7vw}
+.solid.dark{background:var(--pepper);color:#f3e9da}
+.solid h2{font-size:clamp(2rem,4vw,2.8rem);margin-bottom:10px}
+.lead{color:var(--muted);max-width:620px;margin-bottom:44px}
+.dark .lead{color:#c9b8a2}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:22px}
+.prod{background:var(--paper);border-radius:20px;padding:26px;box-shadow:0 8px 30px rgba(60,40,20,.07);transition:transform .3s,box-shadow .3s}
+.prod:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(60,40,20,.14)}
+.swatch{width:54px;height:54px;border-radius:50%;margin-bottom:16px;box-shadow:inset -6px -6px 12px rgba(0,0,0,.35)}
+.prod h3{font-size:1.3rem;margin-bottom:6px}
+.prod p{color:var(--muted);font-size:.93rem}
+.tags{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.tags span{font-size:.75rem;background:var(--cream);padding:3px 10px;border-radius:999px}
+.feat{border-top:1px solid rgba(243,233,218,.2);padding-top:18px}
+.feat b{display:block;font-family:"Playfair Display",serif;font-size:1.25rem;margin-bottom:6px;color:#e8c27a}
+.feat p{color:#c9b8a2;font-size:.93rem}
+
+.contact{display:grid;grid-template-columns:1fr 1.2fr;gap:50px;align-items:start}
+.info div{margin-bottom:18px}
+.info small{display:block;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);font-weight:600;font-size:.72rem}
+form{background:var(--paper);border-radius:22px;padding:30px;box-shadow:0 8px 30px rgba(60,40,20,.08);display:grid;gap:14px}
+form .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{font-size:.85rem;font-weight:500;display:grid;gap:5px}
+input,select,textarea{font:inherit;padding:11px 13px;border-radius:10px;border:1px solid #ddd0bd;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:transparent}
+footer{position:relative;z-index:2;background:#16100c;color:#9d8b76;text-align:center;padding:26px;font-size:.85rem}
+
+@media (max-width:760px){
+  header nav a:not(.btn){display:none}
+  .stage,.stage.right{align-items:flex-end;justify-content:center;padding:0 16px 9vh}
+  .card{max-width:none;padding:22px}
+  .card h2{font-size:1.6rem}
+  .hero .card{margin-bottom:6vh}
+  #dots{display:none}
+  .solid{padding:70px 16px}
+  .contact,form .row{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.card{transition:none}.scrollhint{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<header>
+  <a class="logo" href="#top"><i></i>Spice Route Exports</a>
+  <nav><a href="#journey">Journey</a><a href="#products">Products</a><a href="#why">Why us</a><a class="btn" href="#contact">Get a quote</a></nav>
+</header>
+<nav id="dots" aria-label="Journey stages"></nav>
+
+<main>
+  <section class="stage hero" id="top" data-name="Welcome">
+    <div class="card in">
+      <div class="step">Exporters &amp; Wholesalers</div>
+      <h1>The King of Spices, from seed to your port.</h1>
+      <p>Farm-direct black pepper, cleaned, graded and packed for importers, wholesalers and food manufacturers worldwide. Scroll to follow a single peppercorn's journey.</p>
+      <div class="actions"><a class="btn" href="#contact">Request a quote</a><a class="btn ghost" href="#journey">See the journey</a></div>
+    </div>
+    <div class="scrollhint">Scroll ↓</div>
+  </section>
+
+  <section class="stage right" id="journey" data-name="The seed">
+    <div class="card"><div class="step">01 · The seed</div><h2>It begins with one peppercorn</h2>
+      <p>Black pepper (<em>Piper nigrum</em>) starts as a seed or a cutting from a healthy mother vine, planted in rich, well-drained tropical soil.</p>
+      <div class="fact">🌱 Healthy planting stock is where quality starts.</div></div>
+  </section>
+
+  <section class="stage" data-name="Sprouting">
+    <div class="card"><div class="step">02 · Sprouting</div><h2>The monsoon wakes it up</h2>
+      <p>Warm rain and shade coax out the first shoot and heart-shaped leaves. Farmers plant it beside a living support tree or pole.</p>
+      <div class="fact">🌧️ Pepper loves humidity, heavy rainfall and partial shade.</div></div>
+  </section>
+
+  <section class="stage right" data-name="Climbing vine">
+    <div class="card"><div class="step">03 · The climbing vine</div><h2>A vine that reaches for the sky</h2>
+      <p>Pepper is a climber. Over three years the vine spirals up its support, gripping it with aerial roots, before it bears its first crop.</p>
+      <div class="fact">🌿 A healthy vine keeps producing for 20+ years.</div></div>
+  </section>
+
+  <section class="stage" data-name="Berries">
+    <div class="card"><div class="step">04 · Flowering &amp; berries</div><h2>Spikes of green pearls</h2>
+      <p>Tiny flowers form on hanging spikes, each carrying dozens of berries. Over six to eight months they swell and ripen from green to red.</p>
+      <div class="fact">🫛 One spike holds 50–150 berries.</div></div>
+  </section>
+
+  <section class="stage right" data-name="Harvest">
+    <div class="card"><div class="step">05 · Hand harvest</div><h2>Plucked at the perfect moment</h2>
+      <p>When the first berries on a spike blush red, the whole spike is hand-picked and gathered in baskets, then threshed to free the berries.</p>
+      <div class="fact">🧺 Timing the harvest decides pungency and colour.</div></div>
+  </section>
+
+  <section class="stage" data-name="Sun drying">
+    <div class="card"><div class="step">06 · Sun drying</div><h2>The sun turns green to black</h2>
+      <p>Berries are spread on clean mats and sun-dried for 7–10 days. They shrink, wrinkle and turn the deep black every kitchen knows.</p>
+      <div class="fact">☀️ Dried to safe moisture levels for long storage.</div></div>
+  </section>
+
+  <section class="stage right" data-name="Export">
+    <div class="card"><div class="step">07 · Grade, pack &amp; export</div><h2>Graded, packed, shipped</h2>
+      <p>We clean, sort and grade by size and density, then pack in jute or PP bags to your specification and load full or part containers.</p>
+      <div class="fact">🚢 Export documentation handled end to end.</div></div>
+  </section>
+
+  <section class="stage center" data-name="Worldwide">
+    <div class="card"><div class="step">Delivered</div><h2>From our farms to your shelves</h2>
+      <p>Reliable supply, consistent quality and honest pricing for importers and wholesalers around the world.</p>
+      <div class="actions" style="margin-top:18px"><a class="btn" href="#products">View products</a></div></div>
+  </section>
+</main>
+
+<section class="solid" id="products">
+  <h2>Our products</h2>
+  <p class="lead">Pepper is our speciality. We also supply a range of whole and ground spices in bulk. Specs and grades on request.</p>
+  <div class="grid">
+    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#5a463a,#120c08)"></div><h3>Black pepper</h3><p>Whole, sun-dried, machine-cleaned and graded.</p><div class="tags"><span>500 G/L</span><span>550 G/L</span><span>570 G/L</span><span>ASTA</span><span>FAQ</span></div></div>
+    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#f4ead6,#bfae8c)"></div><h3>White pepper</h3><p>Skin removed for a clean, mellow heat. Ideal for sauces and light dishes.</p><div class="tags"><span>Whole</span><span>Powder</span></div></div>
+    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#9bc25a,#3f6a22)"></div><h3>Green pepper</h3><p>Dehydrated or in brine, harvested young for a fresh, bright flavour.</p><div class="tags"><span>Dehydrated</span><span>Brine</span></div></div>
+    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#8a5a3a,#3a2416)"></div><h3>Pepper powder</h3><p>Freshly ground to your mesh size, in retail or bulk packs.</p><div class="tags"><span>Coarse</span><span>Fine</span><span>Custom mesh</span></div></div>
+    <div class="prod"><div class="swatch" style="background:radial-gradient(circle at 35% 30%,#e0b441,#9a6a12)"></div><h3>Other spices</h3><p>Cardamom, turmeric, cloves, cinnamon, nutmeg and more on request.</p><div class="tags"><span>Whole</span><span>Ground</span></div></div>
+  </div>
+</section>
+
+<section class="solid dark" id="why">
+  <h2>Why buyers choose us</h2>
+  <p class="lead">Wholesale volumes with the care of a family farm.</p>
+  <div class="grid">
+    <div class="feat"><b>Farm-direct sourcing</b><p>Bought directly from growers we know, so you get traceable, fresh crop.</p></div>
+    <div class="feat"><b>Quality checked</b><p>Cleaned, sorted and tested for moisture, density and purity before packing.</p></div>
+    <div class="feat"><b>Custom packing</b><p>Jute, PP or retail packs, private labelling and your choice of bag sizes.</p></div>
+    <div class="feat"><b>Export ready</b><p>FCL and LCL shipments with phytosanitary and origin documents handled.</p></div>
+  </div>
+</section>
+
+<section class="solid" id="contact">
+  <div class="contact">
+    <div class="info">
+      <h2>Let's talk pepper</h2>
+      <p class="lead" style="margin-bottom:28px">Tell us the product, grade and quantity you need and we'll get back with a quote.</p>
+      <!-- TODO: replace with real contact details -->
+      <div><small>Phone / WhatsApp</small>+00 00000 00000</div>
+      <div><small>Email</small>sales@example.com</div>
+      <div><small>Address</small>Your address here</div>
+    </div>
+    <form id="quote" data-email="sales@example.com">
+      <div class="row"><label>Name<input name="name" required autocomplete="name"></label><label>Company<input name="company" autocomplete="organization"></label></div>
+      <div class="row"><label>Product<select name="product"><option>Black pepper</option><option>White pepper</option><option>Green pepper</option><option>Pepper powder</option><option>Other spices</option></select></label><label>Quantity<input name="qty" placeholder="e.g. 1 x 20ft container"></label></div>
+      <label>Message<textarea name="msg" rows="4" placeholder="Grade, packing, destination port..."></textarea></label>
+      <button class="btn" type="submit">Send enquiry</button>
+    </form>
+  </div>
+</section>
+<footer>© <span id="yr"></span> Spice Route Exports. All rights reserved.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+// Enquiry form: no backend, so it opens the visitor's mail app with the details filled in.
+document.getElementById('quote').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = new FormData(e.target), to = e.target.dataset.email;
+  const body = `Name: ${f.get('name')}\nCompany: ${f.get('company')}\nProduct: ${f.get('product')}\nQuantity: ${f.get('qty')}\n\n${f.get('msg')}`;
+  location.href = `mailto:${to}?subject=${encodeURIComponent('Enquiry: ' + f.get('product'))}&body=${encodeURIComponent(body)}`;
+});
+
+// Reveal cards + side dots
+const stages = [...document.querySelectorAll('.stage')];
+const dots = document.getElementById('dots');
+stages.forEach((s, i) => { const a = document.createElement('a'); a.href = '#'; a.innerHTML = `<span>${s.dataset.name}</span>`;
+  a.onclick = ev => { ev.preventDefault(); scrollTo({ top: i * innerHeight, behavior: 'smooth' }); }; dots.appendChild(a); });
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('in')), { threshold: .3 });
+document.querySelectorAll('.card').forEach(c => io.observe(c));
+
+if (window.THREE) init();
+
+function init() {
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const range = (t, a, b) => clamp((t - a) / (b - a));
+  const ease = x => x * x * (3 - 2 * x);
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .85 }, o));
+
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xf3ead8, 22, 60);
+  scene.background = new THREE.Color();
+  const camera = new THREE.PerspectiveCamera(42, 1, .02, 200);
+
+  scene.add(new THREE.HemisphereLight(0xfff4dd, 0x5a4330, .55));
+  const sun = new THREE.DirectionalLight(0xfff1d6, .9);
+  sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 40 });
+  sun.shadow.bias = -.0008;
+  scene.add(sun, sun.target);
+
+  // ---------- world ----------
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 40), M(0x6f8a45));
+  ground.rotation.x = -Math.PI / 2; ground.position.x = 5; ground.receiveShadow = true; scene.add(ground);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), M(0x2e7391, { roughness: .25, metalness: .1 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(73, .02, 0); scene.add(water);
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(1.3, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2), M(0x4a3222, { roughness: 1 }));
+  mound.scale.y = .08; mound.receiveShadow = true; scene.add(mound);
+  // a few grass tufts around the farm
+  const tuftGeo = new THREE.ConeGeometry(.05, .25, 4), tuftMat = M(0x3f6e2a);
+  for (let i = 0; i < 160; i++) { const m = new THREE.Mesh(tuftGeo, tuftMat), a = rnd(0, 6.28), r = rnd(1.5, 9);
+    m.position.set(Math.cos(a) * r, .1, Math.sin(a) * r); m.rotation.z = rnd(-.3, .3); scene.add(m); }
+
+  // wrinkle a sphere so peppercorns look dried (offset depends only on position, so seams don't crack)
+  function wrinkle(geo, amt) {
+    const p = geo.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = v.clone().normalize();
+      v.addScaledVector(n, Math.sin(n.x * 23) * Math.sin(n.y * 19 + 1) * Math.sin(n.z * 21 + 2) * amt); p.setXYZ(i, v.x, v.y, v.z); }
+    geo.computeVertexNormals(); return geo;
+  }
+
+  // seed
+  const seed = new THREE.Mesh(wrinkle(new THREE.SphereGeometry(.09, 40, 30), .012), M(0x2b1d15, { roughness: .9 }));
+  seed.castShadow = true; scene.add(seed);
+
+  // support pole
+  const poleGeo = new THREE.CylinderGeometry(.12, .16, 6, 14); poleGeo.translate(0, 3, 0);
+  const pole = new THREE.Mesh(poleGeo, M(0x6b4a2e, { roughness: 1 })); pole.castShadow = true; scene.add(pole);
+
+  // vine: a helix around the pole, revealed with drawRange
+  class Helix extends THREE.Curve {
+    getPoint(t, v = new THREE.Vector3()) { const a = t * Math.PI * 2 * 3.2, r = .2 + .03 * Math.sin(t * 40);
+      return v.set(Math.cos(a) * r, t * 5.6 + .05, Math.sin(a) * r); }
+  }
+  const helix = new Helix();
+  const vineGeo = new THREE.TubeGeometry(helix, 700, .028, 6, false), vineTotal = vineGeo.index.count;
+  const vine = new THREE.Mesh(vineGeo, M(0x3d7330, { roughness: .6 })); vine.castShadow = true; scene.add(vine);
+  seed.position.copy(helix.getPoint(0)).setY(.06);
+
+  // heart-shaped leaves
+  const ls = new THREE.Shape(); ls.moveTo(0, 0);
+  ls.bezierCurveTo(.34, .1, .3, .55, 0, .9); ls.bezierCurveTo(-.3, .55, -.34, .1, 0, 0);
+  const leafGeo = new THREE.ShapeGeometry(ls, 10); leafGeo.rotateX(Math.PI / 2 + .45);
+  const leafMat = M(0x2f7d32, { side: THREE.DoubleSide, roughness: .5 });
+  const leaves = [];
+  for (let i = 0; i < 52; i++) {
+    const t = .015 + i / 52 * .97, p = helix.getPoint(t), m = new THREE.Mesh(leafGeo, leafMat);
+    m.position.copy(p); m.rotation.y = Math.atan2(p.x, p.z) + rnd(-.6, .6); m.castShadow = true;
+    scene.add(m); leaves.push({ m, t, s: rnd(.4, .6) * (t < .08 ? .7 : 1) });
+  }
+
+  // fruit spikes (hanging catkins of berries)
+  const berryGeo = new THREE.SphereGeometry(.034, 10, 8), berryMat = M(0x5aa02c, { roughness: .35 });
+  const stalkGeo = new THREE.CylinderGeometry(.006, .006, .6, 4); stalkGeo.translate(0, -.28, 0);
+  const stalkMat = M(0x4b7a2a);
+  const basketPos = V(1.5, 0, 1.1), spikes = [];
+  for (let j = 0; j < 16; j++) {
+    const t = .25 + j / 16 * .7, p = helix.getPoint(t), out = V(p.x, 0, p.z).normalize();
+    const g = new THREE.Group(); g.add(new THREE.Mesh(stalkGeo, stalkMat));
+    for (let k = 0; k < 18; k++) { const b = new THREE.Mesh(berryGeo, berryMat);
+      b.position.set(Math.sin(k * 2.3) * .024, -k * .03, Math.cos(k * 2.3) * .024); b.scale.setScalar(1 - k / 34); g.add(b); }
+    const home = p.clone().addScaledVector(out, .17);
+    const a = rnd(0, 6.28), r = rnd(0, .22);
+    const dest = basketPos.clone().add(V(Math.cos(a) * r, .12 + j * .012, Math.sin(a) * r));
+    g.position.copy(home); scene.add(g); spikes.push({ g, home, dest, j, spin: rnd(-1, 1) });
+  }
+
+  // basket
+  const basket = new THREE.Group();
+  const bmat = M(0xa8793f, { side: THREE.DoubleSide, roughness: 1 });
+  basket.add(new THREE.Mesh(new THREE.CylinderGeometry(.45, .33, .38, 24, 1, true), bmat));
+  const bb = new THREE.Mesh(new THREE.CircleGeometry(.33, 24), bmat); bb.rotation.x = -Math.PI / 2; bb.position.y = -.18; basket.add(bb);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.45, .025, 6, 32), M(0x7d5528)); rim.rotation.x = Math.PI / 2; rim.position.y = .19; basket.add(rim);
+  basket.position.copy(basketPos).setY(.19); basket.children.forEach(c => c.castShadow = true); scene.add(basket);
+
+  // drying yard at x = 20
+  const DRY = V(20, 0, 0);
+  const mat = new THREE.Mesh(new THREE.BoxGeometry(5.2, .04, 3.6), M(0x8f6d42, { roughness: 1 }));
+  mat.position.copy(DRY).setY(.02); mat.receiveShadow = true; scene.add(mat);
+  const dryMat = M(0xa8321f, { roughness: .9 }), N = 900;
+  const corns = new THREE.InstancedMesh(wrinkle(new THREE.SphereGeometry(.05, 14, 10), .008), dryMat, N);
+  corns.castShadow = true; scene.add(corns);
+  const pile = [], spread = [];
+  for (let i = 0; i < N; i++) {
+    const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * .55;
+    pile.push(V(DRY.x + Math.cos(a) * r, .08 + (.55 - r) * .9 * Math.random(), Math.sin(a) * r));
+    spread.push(V(DRY.x + rnd(-2.4, 2.4), .085, rnd(-1.6, 1.6)));
+  }
+  const dummy = new THREE.Object3D();
+  const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.4, 32, 16), new THREE.MeshBasicMaterial({ color: 0xffd36b, fog: false }));
+  sunBall.position.set(28, 12, -16); scene.add(sunBall);
+  // rake
+  const rake = new THREE.Group();
+  const rh = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 2), M(0x7b5530)); rh.rotation.z = 1.1; rh.position.set(-.8, .45, 0); rake.add(rh);
+  rake.add(new THREE.Mesh(new THREE.BoxGeometry(.06, .08, .8), M(0x7b5530)));
+  rake.position.set(DRY.x + 1.5, .06, 1.2); scene.add(rake);
+
+  // port + ship at x ~ 40
+  const dock = new THREE.Mesh(new THREE.BoxGeometry(3, .5, 3.4), M(0x7d6044)); dock.position.set(37.6, .25, 0); dock.receiveShadow = true; scene.add(dock);
+  const ship = new THREE.Group(), SHIP = V(42.2, 0, 0); ship.position.copy(SHIP); scene.add(ship);
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1, 1.8), M(0x7b2d26)); hull.position.y = .3; ship.add(hull);
+  const bow = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, 1, 3, 1, false, 0, Math.PI), M(0x7b2d26));
+  bow.rotation.y = Math.PI / 2; bow.scale.set(1, 1, .9); bow.position.set(2.7, .3, 0); ship.add(bow);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(5.4, .06, 1.8), M(0x9b7b55)); deck.position.y = .82; ship.add(deck);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1, .9, 1.4), M(0xf2efe8)); cabin.position.set(-2.1, 1.3, 0); ship.add(cabin);
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, .7, 12), M(0xc08a2d)); funnel.position.set(-2.2, 2, 0); ship.add(funnel);
+  [0x2f6b8f, 0x3d7330, 0xc08a2d].forEach((c, i) => { const b = new THREE.Mesh(new THREE.BoxGeometry(.9, .5, .55), M(c)); b.position.set(2.1, 1.1, (i - 1) * .58); ship.add(b); });
+  ship.traverse(o => o.castShadow = true);
+  const sackGeo = new THREE.CylinderGeometry(.19, .22, .42, 12), sackMat = M(0xc9a46a, { roughness: 1 }), sacks = [];
+  for (let i = 0; i < 15; i++) {
+    const s = new THREE.Mesh(sackGeo, sackMat); s.castShadow = true;
+    const from = V(37.6 - SHIP.x + (i % 3 - 1) * .5, .71 + Math.floor(i / 9) * .42, (Math.floor(i / 3) % 3 - 1) * .5);
+    const to = V(-1.3 + (i % 5) * .5, 1.06, (Math.floor(i / 5) - 1) * .5);
+    ship.add(s); sacks.push({ s, from, to, i });
+  }
+
+  // ---------- scroll-driven timeline ----------
+  // camera keyframes, one per section: [position, lookAt, subject shift (+1 = subject on right)]
+  const K = [
+    [V(.95, 1.35, 1.35), V(.2, 1.12, 0), 1],
+    [V(.75, .38, 1.0), V(.2, .05, 0), -1],
+    [V(1.4, .95, 2.0), V(.1, .35, 0), 1],
+    [V(4.6, 3.3, 6.8), V(0, 2.7, 0), -1],
+    [V(1.9, 4.3, 2.7), V(.1, 3.6, 0), 1],
+    [V(3.4, 1.9, 4.4), V(.8, .9, .5), -1],
+    [V(DRY.x - 1.5, 5.2, 7.2), V(DRY.x + .6, 0, 0), .8],
+    [V(38.4, 6.2, 11.5), V(40.2, .5, 0), -1],
+    [V(45, 7.5, 17), V(50, 0, 0), 0]
+  ];
+  const sky = [[0, 0xf3ead8], [3, 0xdbeedb], [5.5, 0xfbe7bc], [7.2, 0xf6d2ae], [8.5, 0xf2b98f]].map(([t, c]) => [t, new THREE.Color(c)]);
+  const green = new THREE.Color(0x5aa02c), red = new THREE.Color(0xb3301e), black = new THREE.Color(0x1f1410), tmp = new THREE.Color();
+  const camPos = V(), camLook = V();
+  let target = 0, cur = 0, mx = 0, my = 0, W = 1, H = 1, mobile = false, lastDry = -1;
+
+  addEventListener('scroll', () => { target = scrollY / innerHeight; }, { passive: true });
+  addEventListener('pointermove', e => { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; });
+  function resize() { W = innerWidth; H = innerHeight; mobile = W < 760; renderer.setSize(W, H, false);
+    camera.aspect = W / H; camera.fov = W < H ? 58 : 42; camera.updateProjectionMatrix(); }
+  addEventListener('resize', resize); resize(); target = scrollY / innerHeight;
+
+  function update(t, time) {
+    // camera
+    const i = Math.min(Math.floor(t), K.length - 2), k = ease(clamp(t - i)), a = K[i], b = K[i + 1];
+    camPos.lerpVectors(a[0], b[0], k); camLook.lerpVectors(a[1], b[1], k);
+    camera.position.copy(camPos).add(V(mx * .25, -my * .15, 0)); camera.lookAt(camLook);
+    const shift = lerp(a[2], b[2], k);
+    if (mobile) camera.setViewOffset(W, H, 0, H * .16, W, H); else camera.setViewOffset(W, H, -W * .17 * shift, 0, W, H);
+    sun.target.position.copy(camLook); sun.position.copy(camLook).add(V(5, 11, 6));
+
+    // sky
+    let s = 0; while (s < sky.length - 2 && t > sky[s + 1][0]) s++;
+    tmp.copy(sky[s][1]).lerp(sky[s + 1][1], clamp((t - sky[s][0]) / (sky[s + 1][0] - sky[s][0])));
+    scene.background.copy(tmp); scene.fog.color.copy(tmp);
+
+    // seed falls and settles into soil
+    const f = ease(range(t, 0, 1));
+    seed.position.y = lerp(1.12, .06, f) + (1 - f) * Math.sin(time * 1.5) * .03;
+    seed.scale.setScalar(lerp(2, 1, f)); seed.rotation.set(time * .3 * (1 - f), time * .5 * (1 - f), 0);
+    seed.visible = t < 2.4;
+
+    // vine growth
+    const grow = t < 2 ? .1 * ease(range(t, 1.1, 2)) : lerp(.1, 1, ease(range(t, 2, 3.2)));
+    vineGeo.setDrawRange(0, Math.floor(grow * vineTotal / 6) * 6); vine.visible = grow > 0;
+    pole.scale.y = Math.max(.001, ease(range(t, 1.8, 2.7))); pole.visible = t > 1.8;
+    for (const l of leaves) { const g = ease(clamp((grow - l.t) / .05)); l.m.visible = g > 0;
+      l.m.scale.setScalar(g * l.s + 1e-4); l.m.rotation.z = Math.sin(time * 1.3 + l.t * 30) * .06; }
+
+    // berries appear, ripen, then are harvested into the basket
+    berryMat.color.copy(green).lerp(red, ease(range(t, 3.9, 4.7)) * .85);
+    for (const sp of spikes) {
+      const g = ease(range(t, 3.25 + sp.j * .02, 3.9 + sp.j * .02)), h = ease(range(t, 4.55 + sp.j * .03, 5.15 + sp.j * .03));
+      sp.g.visible = g > 0; sp.g.scale.setScalar(g + 1e-4);
+      sp.g.position.lerpVectors(sp.home, sp.dest, h); sp.g.position.y += Math.sin(h * Math.PI) * .6;
+      sp.g.rotation.set(h * 1.4, sp.spin * h, h * 1.5 + (1 - h) * Math.sin(time + sp.j) * .05);
+    }
+
+    // drying: pile spreads out on the mat, then red -> black in the sun
+    const sp = ease(range(t, 5.3, 6)), dk = ease(range(t, 5.8, 6.8));
+    dryMat.color.copy(red).lerp(green, .25).lerp(black, dk);
+    if (Math.abs(sp - lastDry) > 1e-4) { lastDry = sp;
+      for (let i = 0; i < N; i++) { dummy.position.lerpVectors(pile[i], spread[i], sp); dummy.rotation.set(i, i * 2, 0);
+        dummy.scale.setScalar(lerp(1, .82, dk)); dummy.updateMatrix(); corns.setMatrixAt(i, dummy.matrix); }
+      corns.instanceMatrix.needsUpdate = true; }
+    rake.position.x = DRY.x + 1.5 - Math.sin(sp * Math.PI) * 2.5;
+    sun.intensity = .9 + .4 * Math.sin(range(t, 5.3, 7) * Math.PI);
+
+    // export: sacks swing from dock onto the ship, then it sails
+    for (const o of sacks) { const q = ease(range(t, 6.55 + o.i * .045, 6.85 + o.i * .045));
+      o.s.position.lerpVectors(o.from, o.to, q); o.s.position.y += Math.sin(q * Math.PI) * 1.2; }
+    const sail = ease(range(t, 7.35, 8.4));
+    ship.position.set(SHIP.x + sail * 9, Math.sin(time * 1.4) * .04, sail * -2);
+    ship.rotation.set(Math.sin(time * 1.1) * .02, sail * .18, Math.sin(time * .9) * .015);
+  }
+
+  const clock = new THREE.Clock();
+  (function loop() {
+    requestAnimationFrame(loop);
+    cur += (target - cur) * .08;
+    const t = clamp(cur, 0, 8.6);
+    update(t, clock.getElapsedTime());
+    const idx = Math.round(clamp(cur, 0, stages.length - 1));
+    [...dots.children].forEach((d, i) => d.classList.toggle('on', i === idx));
+    dots.style.opacity = cur > stages.length - .5 ? 0 : 1;
+    renderer.render(scene, camera);
+  })();
+}
+</script>
+</body>
+</html>
