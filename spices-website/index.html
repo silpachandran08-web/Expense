@@ -257,11 +257,16 @@ footer{position:relative;z-index:3;background:var(--bg);border-top:1px solid var
       <!-- TODO: replace with real contact details -->
       <dl class="spec info"><dt>Phone</dt><dd>+00 00000 00000</dd><dt>Email</dt><dd>sales@example.com</dd><dt>Address</dt><dd>Your address here</dd></dl>
     </div>
-    <form id="quote" data-email="sales@example.com">
+    <!-- Netlify Forms: detected at deploy time; submissions appear under Forms → "quote" and are emailed via Form notifications -->
+    <form id="quote" name="quote" method="POST" data-netlify="true" netlify-honeypot="bot-field" data-email="sales@example.com">
+      <input type="hidden" name="form-name" value="quote">
+      <p hidden><label>Leave this empty<input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
       <div class="row"><label for="f-name">Name<input id="f-name" name="name" required autocomplete="name"></label><label for="f-co">Company<input id="f-co" name="company" autocomplete="organization"></label></div>
+      <div class="row"><label for="f-email">Email<input id="f-email" name="email" type="email" required autocomplete="email"></label><label for="f-phone">Phone / WhatsApp<input id="f-phone" name="phone" type="tel" autocomplete="tel"></label></div>
       <div class="row"><label for="f-prod">Product<select id="f-prod" name="product"><option>Green cardamom 8 mm+</option><option>Green cardamom 7–8 mm</option><option>Green cardamom 6–7 mm</option><option>Green cardamom mixed</option><option>Cardamom seeds</option><option>Cardamom powder</option><option>Other spices</option></select></label><label for="f-qty">Quantity<input id="f-qty" name="qty" placeholder="e.g. 1 × 20′ FCL"></label></div>
       <label for="f-msg">Destination &amp; notes<textarea id="f-msg" name="msg" rows="3" placeholder="Port, packing, delivery window"></textarea></label>
       <button class="btn" type="submit">Send enquiry</button>
+      <p id="quote-status" class="note" role="status" aria-live="polite"></p>
     </form>
   </div>
 </section>
@@ -271,12 +276,23 @@ footer{position:relative;z-index:3;background:var(--bg);border-top:1px solid var
 <script>
 document.getElementById('yr').textContent = new Date().getFullYear();
 
-// Enquiry form: no backend, so it opens the visitor's mail app with the details filled in.
-document.getElementById('quote').addEventListener('submit', e => {
+// Enquiry form: posts to Netlify Forms (which emails each enquiry). If the site is hosted somewhere
+// without Netlify Forms, the post fails and we fall back to opening the visitor's mail app.
+document.getElementById('quote').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = new FormData(e.target), to = e.target.dataset.email;
-  const body = `Name: ${f.get('name')}\nCompany: ${f.get('company')}\nProduct: ${f.get('product')}\nQuantity: ${f.get('qty')}\n\n${f.get('msg')}`;
-  location.href = `mailto:${to}?subject=${encodeURIComponent('Enquiry: ' + f.get('product'))}&body=${encodeURIComponent(body)}`;
+  const form = e.target, btn = form.querySelector('button'), status = document.getElementById('quote-status'), f = new FormData(form);
+  btn.disabled = true; btn.textContent = 'Sending…'; status.textContent = '';
+  try {
+    const res = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(f).toString() });
+    if (!res.ok) throw new Error(res.status);
+    form.reset(); btn.textContent = 'Enquiry sent';
+    status.textContent = 'Thank you. We have your enquiry and will reply by email, usually within one working day.';
+  } catch {
+    btn.disabled = false; btn.textContent = 'Send enquiry';
+    status.textContent = 'Could not send from this page, so your email app is opening with the enquiry filled in.';
+    const body = `Name: ${f.get('name')}\nCompany: ${f.get('company')}\nEmail: ${f.get('email')}\nPhone: ${f.get('phone')}\nProduct: ${f.get('product')}\nQuantity: ${f.get('qty')}\n\n${f.get('msg')}`;
+    location.href = `mailto:${form.dataset.email}?subject=${encodeURIComponent('Enquiry: ' + f.get('product'))}&body=${encodeURIComponent(body)}`;
+  }
 });
 
 const stages = [...document.querySelectorAll('.stage')];
