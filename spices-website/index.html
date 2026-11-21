@@ -267,7 +267,7 @@ footer{position:relative;z-index:3;background:var(--bg);border-top:1px solid var
 </section>
 <footer><span>© <span id="yr"></span> Spice Route Exports</span><span>Green cardamom · Spices · Export &amp; wholesale</span></footer>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
 document.getElementById('yr').textContent = new Date().getFullYear();
 
@@ -313,7 +313,7 @@ function init() {
   // ---------- renderer ----------
   const canvas = document.getElementById('scene');
   const R = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  R.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  R.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.05;
   R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
   const scene = new T.Scene(); scene.background = new T.Color(); scene.fog = new T.FogExp2(0, .1);
@@ -396,7 +396,13 @@ function init() {
     g.strokeStyle = 'rgba(195,222,145,.6)'; g.lineWidth = 3; g.beginPath(); g.moveTo(64, 1022); g.lineTo(64, 6); g.stroke();
     g.restore(); g.lineWidth = 2; g.strokeStyle = 'rgba(10,24,6,.5)'; g.stroke(path); return c;
   }
-  const leafMat = M({ map: tex(cardLeafCanvas()), alphaTest: .5, side: T.DoubleSide, roughness: .38 });
+  const leafMat = M({ map: tex(cardLeafCanvas()), alphaTest: .5, side: T.DoubleSide, roughness: .38 }), wind = { value: 0 };
+  leafMat.onBeforeCompile = sh => { sh.uniforms.uTime = wind; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    #ifdef USE_INSTANCING
+      float wf = clamp(position.z / .62, 0., 1.); vec3 ip = instanceMatrix[3].xyz;
+      transformed.x += sin(uTime * 1.3 + ip.x * 2.1 + ip.z * 1.7) * .03 * wf * wf;
+      transformed.y += sin(uTime * 1.9 + ip.z * 2.3 + ip.x) * .018 * wf * wf;
+    #endif`); };
   const leafGeo = new T.PlaneGeometry(.12, .62, 4, 28); leafGeo.translate(0, .31, 0);
   { const p = leafGeo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, (x / .06) ** 2 * .01 + (y / .62) ** 2 * .22); }
     leafGeo.rotateX(Math.PI / 2); leafGeo.computeVertexNormals(); }
@@ -438,8 +444,8 @@ function init() {
   const stemsBg = shadow(new T.InstancedMesh(stemGeo, stemMat, bg.length)), leavesBg = shadow(new T.InstancedMesh(leafGeo, leafMat, bgLeafCount));
   { let li = 0; bg.forEach((st, k) => { stemsBg.setMatrixAt(k, stemM(st, 1)); for (const L of st.leaves) { leavesBg.setMatrixAt(li, leafM(st, L, 1, 1)); leavesBg.setColorAt(li++, tint.setScalar(.72 + rand() * .38)); } }); }
   scene.add(stemsBg, leavesBg);
-  const litter = shadow(new T.InstancedMesh(litterGeo, litterMat, 900), false);
-  for (let i = 0; i < 900; i++) { const a = rand() * 6.28, r = .3 + rand() ** .7 * 7;
+  const litter = shadow(new T.InstancedMesh(litterGeo, litterMat, 2200), false);
+  for (let i = 0; i < 2200; i++) { const a = rand() * 6.28, r = .3 + rand() ** .7 * 8;
     litter.setMatrixAt(i, _m.compose(V(Math.cos(a) * r, .004, Math.sin(a) * r - 1.5), _q.setFromEuler(_e.set(-.02 + rand() * .06, rand() * 6.28, (rand() - .5) * .3)), _s.setScalar(.7 + rand() * .5)));
     litter.setColorAt(i, tint.setScalar(.6 + rand() * .5)); }
   scene.add(litter);
@@ -447,12 +453,15 @@ function init() {
   // cardamom capsule: three-sided, finely ribbed, tapering to a beak
   function podGeo(ws, hs) { const g = new T.SphereGeometry(1, ws, hs), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), th = Math.atan2(z, x), rr = Math.hypot(x, z);
-      const f = (1 + .1 * Math.cos(3 * th) + .012 * Math.sin(28 * th)) * (1 - .22 * Math.max(0, y) ** 2) * .52; p.setXYZ(i, Math.cos(th) * rr * f, y, Math.sin(th) * rr * f); }
+      const f = (1 + .1 * Math.cos(3 * th) + .004 * Math.sin(24 * th)) * (1 - .22 * Math.max(0, y) ** 2) * .52; p.setXYZ(i, Math.cos(th) * rr * f, y, Math.sin(th) * rr * f); }
     return weldNormals(g); }
 
+  // fine longitudinal ribs on the capsule skin
+  const ribC = paint(256, 64, (u, v) => { const k = (.93 + .07 * Math.abs(Math.sin(u * Math.PI * 36))) * (.92 + .08 * noise2p(u * 32, v * 8, 32, 8)) * 255; return [k, k * .99, k * .9]; });
+  const podSkin = o => new T.MeshPhysicalMaterial(Object.assign({ map: tex(ribC), bumpMap: tex(ribC, 1, 1, false), bumpScale: .03, roughness: .5, sheen: .6, sheenColor: 0xd9efb4, sheenRoughness: .6 }, o));
   // hero capsule
   const seed = new T.Group();
-  seed.add(shadow(new T.Mesh(podGeo(110, 80), M({ color: 0x5b8c30, roughness: .5 }))));
+  seed.add(shadow(new T.Mesh(podGeo(110, 80), podSkin({ color: 0x5f9334 }))));
   const tipMat = M({ color: 0x6d6c3a, roughness: .8 });
   const stalk = shadow(new T.Mesh(new T.CylinderGeometry(.05, .08, .5, 10), tipMat)); stalk.position.y = -1.2; seed.add(stalk);
   const beak = shadow(new T.Mesh(new T.ConeGeometry(.07, .22, 10), tipMat)); beak.position.y = 1.05; seed.add(beak);
@@ -467,7 +476,7 @@ function init() {
     for (let n = 0; n < 7; n++) { const tn = .22 + n * .12; nodes.push({ p: c.getPoint(tn), tn, o, pi: i }); }
   }
   const flowers = shadow(new T.InstancedMesh(new T.SphereGeometry(1, 10, 6), M({ color: 0xf3eee4, roughness: .5, emissive: 0x1d1b17 }), nodes.length));
-  const pods = shadow(new T.InstancedMesh(podGeo(18, 12), new T.MeshPhysicalMaterial({ roughness: .45, clearcoat: .3 }), nodes.length * 3));
+  const pods = shadow(new T.InstancedMesh(podGeo(18, 12), podSkin({ clearcoat: .25 }), nodes.length * 3));
   scene.add(flowers, pods);
   const basketPos = V(1.15, 0, .95), podList = [];
   nodes.forEach(N => { for (let k = 0; k < 3; k++) { const a = rand() * 6.28, r = Math.sqrt(rand()) * .12;
@@ -490,7 +499,7 @@ function init() {
   const meshC = weave(64, rgb(0xa3a19a), rgb(0x2c2b28));
   const mat = shadow(new T.Mesh(new T.BoxGeometry(2.8, .012, 2), M({ map: tex(meshC, 4, 3), roughness: .5, metalness: .6 })), false, true);
   mat.position.set(DRY.x, .066, 0); scene.add(mat);
-  const NC = 3600, corns = shadow(new T.InstancedMesh(podGeo(16, 10), M({ roughness: .55 }), NC)); scene.add(corns);
+  const NC = 3600, corns = shadow(new T.InstancedMesh(podGeo(16, 10), podSkin({ roughness: .6 }), NC)); scene.add(corns);
   const pile = [], spread = [], cr = [], cFresh = [], cDry = [];
   for (let i = 0; i < NC; i++) { const a = rand() * 6.28, r = Math.sqrt(rand()) * .55;
     pile.push(V(DRY.x + Math.cos(a) * r - .6, .09 + (.55 - r) / .55 * .3 * Math.sqrt(rand()), Math.sin(a) * r));
@@ -548,6 +557,52 @@ function init() {
   const lampMat = new T.MeshBasicMaterial({ color: new T.Color(4, 3, 1.6) });
   for (const [x, z] of [[47, 5], [68, -5.5], [86, 5.5]]) { add(new T.CylinderGeometry(.14, .2, 22, 10), barMat, x, 11, z, scene); add(new T.BoxGeometry(1.6, .3, .6), lampMat, x, 22, z, scene); }
 
+
+  // ---------- post-processing: depth of field, vignette, grain ----------
+  const rt = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: R.capabilities.isWebGL2 ? 4 : 0 });
+  rt.depthTexture = new T.DepthTexture(1, 1); rt.depthTexture.type = T.UnsignedIntType;
+  const post = new T.ShaderMaterial({
+    uniforms: { tColor: { value: rt.texture }, tDepth: { value: rt.depthTexture }, texel: { value: new T.Vector2() }, near: { value: camera.near }, far: { value: camera.far },
+      focus: { value: 1 }, aperture: { value: 20 }, maxBlur: { value: 14 }, time: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: `
+      uniform sampler2D tColor, tDepth; uniform vec2 texel; uniform float near, far, focus, aperture, maxBlur, time; varying vec2 vUv;
+      float lin(float d) { return near * far / (far - d * (far - near)); }
+      float coc(float z) { return clamp(abs(z - focus) / z * aperture, 0., maxBlur); }
+      void main() {
+        float cd = lin(texture2D(tDepth, vUv).r), cs = coc(cd);
+        vec3 col = texture2D(tColor, vUv).rgb; float tot = 1., r = 1.;
+        for (int i = 0; i < 200; i++) {               // golden-angle gather (single-pass bokeh)
+          if (r >= maxBlur) break;
+          float a = float(i) * 2.39996323; vec2 tc = vUv + vec2(cos(a), sin(a)) * texel * r;
+          vec3 sc = texture2D(tColor, tc).rgb; float sd = lin(texture2D(tDepth, tc).r), ss = coc(sd);
+          if (sd > cd) ss = clamp(ss, 0., cs * 2.);
+          col += mix(col / tot, sc, smoothstep(r - .5, r + .5, ss)); tot += 1.; r += 1. / r;
+        }
+        col /= tot;
+        vec2 q = vUv - .5; col *= 1. - dot(q, q) * .85;
+        col *= 1. + (fract(sin(dot(vUv + fract(time), vec2(12.9898, 78.233))) * 43758.5453) - .5) * .05;
+        gl_FragColor = vec4(col, 1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+    depthTest: false, depthWrite: false });
+  const postScene = new T.Scene(), postCam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new T.Mesh(new T.PlaneGeometry(2, 2), post);
+  quad.frustumCulled = false; postScene.add(quad);
+
+  // ---------- forest atmosphere: light shafts through the canopy, drifting dust ----------
+  const beamC = paint(64, 256, (u, v) => { const k = Math.exp(-((u - .5) ** 2) / .03) * Math.sin(v * Math.PI) ** .8 * 255; return [k, k, k]; });
+  const beamTex = tex(beamC); beamTex.wrapS = beamTex.wrapT = T.ClampToEdgeWrapping;
+  const beams = [];
+  for (const [x, z, w] of [[-1.6, -2.2, 1.4], [1.2, -3.6, 1.1], [2.6, -1.2, .9], [-3.2, -4.8, 1.6], [.2, -6, 1.3], [-.8, .2, .8]]) for (const ry of [0, Math.PI / 2]) {
+    const b = new T.Mesh(new T.PlaneGeometry(w, 13), new T.MeshBasicMaterial({ map: beamTex, color: 0xffdcaa, transparent: true, opacity: .07, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false }));
+    b.position.set(x, 6, z); b.rotation.set(0, ry + .4, .38, 'YXZ'); scene.add(b); beams.push(b); }
+  const dotC = document.createElement('canvas'); dotC.width = dotC.height = 32; { const g = dotC.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); }
+  const dustPos = new Float32Array(900 * 3); for (let i = 0; i < 900; i++) dustPos.set([(rand() - .5) * 7, rand() * 3.5, (rand() - .5) * 6 - 1], i * 3);
+  const dustGeo = new T.BufferGeometry(); dustGeo.setAttribute('position', new T.BufferAttribute(dustPos, 3));
+  const dust = new T.Points(dustGeo, new T.PointsMaterial({ size: .008, map: tex(dotC), color: 0xffe6c0, transparent: true, opacity: .55, blending: T.AdditiveBlending, depthWrite: false }));
+  scene.add(dust);
+
   // ---------- timeline ----------
   const K = [ // camera position, look-at — one per section
     [V(.3, .95, 1.05), V(.55, .8, .45)],
@@ -559,15 +614,15 @@ function init() {
     [V(31.4, 1.5, 2.2), V(30.1, 0, 0)],
     [V(67.8, 2.2, 5.6), V(62.4, 1.2, .5)],
     [V(71, 7.5, 14), V(61, .6, -2.5)]];
-  const ATM = [ // t, background/fog, key colour, key intensity, hemi, fog density, shadow extent
-    [0, 0x0c0b09, 0xffe2b8, 3.2, .3, .14, 2.5], [2, 0x0d100b, 0xfff0d0, 3, .4, .11, 2.5], [4, 0x0f120c, 0xffe6c0, 3.2, .45, .09, 3.5],
-    [5.5, 0x160f09, 0xffc485, 4.2, .5, .08, 3.5], [6.5, 0x160f09, 0xffc485, 4.4, .5, .08, 3.5], [7, 0x0b0e12, 0xe4ecff, 2.8, .5, .05, 7], [8.6, 0x0b0f15, 0xd6e0ff, 3.4, .75, .03, 16]];
+  const ATM = [ // t, background/fog, key colour, key intensity, hemi, fog density, shadow extent, lens aperture (blur)
+    [0, 0x0c0b09, 0xffe2b8, 3.2, .3, .14, 2.5, 34], [1, 0x0c0b09, 0xffe8c4, 3.1, .35, .13, 2.5, 30], [2, 0x0d100b, 0xfff0d0, 3, .4, .11, 2.5, 20], [3, 0x0e110b, 0xffecc8, 3.1, .42, .1, 3.5, 9], [4, 0x0f120c, 0xffe6c0, 3.2, .45, .09, 3.5, 16],
+    [5.5, 0x160f09, 0xffc485, 4.2, .5, .08, 3.5, 12], [6.5, 0x160f09, 0xffc485, 4.4, .5, .08, 3.5, 12], [7, 0x0b0e12, 0xe4ecff, 2.8, .5, .05, 7, 6], [8.6, 0x0b0f15, 0xd6e0ff, 3.4, .75, .03, 16, 3]];
   const cA = new T.Color(), cB = new T.Color(), camLook = V(0, 0, 0);
   let target = 0, cur = 0, W = 1, H = 1, mobile = false, mx = 0, my = 0, last = -1, extent = 0;
   const read = () => { target = scrollY / innerHeight; };
   addEventListener('scroll', read, { passive: true });
   addEventListener('pointermove', e => { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; });
-  function resize() { W = innerWidth; H = innerHeight; mobile = W < 760; R.setSize(W, H, false); camera.aspect = W / H; camera.fov = W < H ? 52 : 38; camera.updateProjectionMatrix(); }
+  function resize() { W = innerWidth; H = innerHeight; mobile = W < 760; R.setSize(W, H, false); const pr = R.getPixelRatio(); rt.setSize(W * pr, H * pr); post.uniforms.texel.value.set(1 / (W * pr), 1 / (H * pr)); post.uniforms.maxBlur.value = mobile ? 8 : 14; camera.aspect = W / H; camera.fov = W < H ? 52 : 38; camera.updateProjectionMatrix(); }
   addEventListener('resize', resize); resize(); read(); cur = target;
 
   function update(t, time) {
@@ -585,6 +640,8 @@ function init() {
     key.color.copy(cA.setHex(A[2])).lerp(cB.setHex(B[2]), q); key.intensity = lerp(A[3], B[3], q); hemi.intensity = lerp(A[4], B[4], q);
     key.target.position.copy(camLook); key.position.copy(camLook).add(V(-4, 7, 5));
     rim.target.position.copy(camLook); rim.position.copy(camLook).add(V(4, 3, -6));
+    post.uniforms.focus.value = camera.position.distanceTo(camLook); post.uniforms.aperture.value = lerp(A[7], B[7], q) * (mobile ? .6 : 1);
+    beams.forEach(b => { b.material.opacity = .17 * (1 - range(t, 4.8, 5.4)); b.visible = t < 5.4; });
     const ext = lerp(A[6], B[6], q); if (Math.abs(ext - extent) > .01) { extent = ext; Object.assign(key.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: .5, far: ext * 6 + 10 }); key.shadow.camera.updateProjectionMatrix(); }
 
     // a capsule falls to the forest floor
@@ -629,8 +686,9 @@ function init() {
     requestAnimationFrame(loop);
     cur = reduce ? target : cur + (target - cur) * .075;
     const t = clamp(cur, 0, 8.6);
-    update(t, clock.getElapsedTime());
-    R.render(scene, camera);
+    const time = clock.getElapsedTime(); wind.value = time; post.uniforms.time.value = time; dust.rotation.y = time * .012; dust.position.y = Math.sin(time * .3) * .05;
+    update(t, time);
+    R.setRenderTarget(rt); R.render(scene, camera); R.setRenderTarget(null); R.render(postScene, postCam);
     if (!shown) { shown = true; canvas.classList.add('ready'); }
     const idx = Math.round(clamp(cur, 0, stages.length - 1));
     [...rail.querySelectorAll('a')].forEach((el, i) => el.classList.toggle('on', i === idx));
