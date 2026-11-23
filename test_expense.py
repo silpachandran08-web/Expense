@@ -521,6 +521,8 @@ class StoreMixin:
         # A credit card's "available balance" is credit left: never listed as money you hold.
         server.store_sms(db, 'AlRajhiBank', 'Credit Card Purchase\nCard: *1596\nAmount: SAR 10.00\nAt: CAFE\nAvailable balance: SAR 175,746.84', '2026-12-30T10:00:00+03:00')
         self.assertNotIn('AlRajhiBank · Card •1596', [r['account'] for r in server.account_months(server.transactions(db), '2026-12', db.run('SELECT * FROM accounts'))])
+        # The balance you typed is the one 'Can I buy it?' sees too.
+        self.assertIn(('SNB salary 7788', 1000.0, True), [(b['account'], b['amount'], b.get('typed', False)) for b in server.known_balances(server.transactions(db), db.run('SELECT * FROM accounts'))])
         server.delete_account(db, 'SNB salary 7788')
         self.assertFalse(db.run("SELECT 1 FROM accounts WHERE name = 'SNB salary 7788'"))
         # An account from a statement keeps its rows when renamed.

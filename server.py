@@ -876,6 +876,18 @@ def delete_account(db, name):
     db.run('DELETE FROM accounts WHERE name = :n AND label = \'\' AND name NOT IN (SELECT account FROM statements)', n=name)
 
 
+def known_balances(every, typed=()):
+    """Each account's latest balance: what its SMS last stated, or the one you typed when that's newer (or the SMS
+    never state one). The one list Accounts & cards, 'Can I buy it?' and the assistants all use."""
+    stated = {b['account']: b for b in balances(every)}
+    for a in typed:
+        b = stated.get(a['name'])
+        if a['balance_at'] and not a['hidden'] and (not b or b['kind'] != 'balance' or a['balance_at'] > b['at']):
+            stated[a['name']] = {'account': a['name'], 'kind': 'balance', 'amount': a['balance_minor'] / 100, 'currency': a['currency'],
+                                 'day': a['balance_at'][:10], 'at': a['balance_at'], 'typed': True}
+    return sorted(stated.values(), key=lambda b: b['day'], reverse=True)
+
+
 def account_months(every, month, typed=()):
     """Each bank account's month: the balance carried in from the month before, money in, money out, and the balance
     at the end (the next month's opening). Worked back and forward from the latest balance the bank stated, so it's
@@ -887,13 +899,9 @@ def account_months(every, month, typed=()):
     when = lambda t: datetime.fromisoformat(t['received_at'])
     out = []
     credit = {n for n, (k, _) in account_kinds(every, typed).items() if k == 'card'}  # a credit card's 'available balance' is credit left, not money
-    stated = {b['account']: b for b in balances(every) if b['account'] not in credit}
-    for a in typed:  # a balance you typed: used when the SMS never state one, or it's newer than what they said
-        b = stated.get(a['name'])
-        if a['balance_at'] and not a['hidden'] and (not b or b['kind'] != 'balance' or a['balance_at'] > b['at']):
-            stated[a['name']] = {'account': a['name'], 'kind': 'balance', 'amount': a['balance_minor'] / 100, 'currency': a['currency'],
-                                 'day': a['balance_at'][:10], 'at': a['balance_at'], 'typed': True}
-    for b in stated.values():
+    for b in known_balances(every, typed):
+        if b['account'] in credit:
+            continue
         if b['kind'] != 'balance':
             continue  # a card's figure is its available limit, not money you hold
         at, now = datetime.fromisoformat(b['at']), round(b['amount'] * 100)
@@ -2072,7 +2080,7 @@ def mcp_friends(db, a):
 def mcp_balances(db, a):
     month = _month_arg(a) or datetime.now(ZoneInfo(os.environ.get('EXPENSE_TZ') or 'Asia/Riyadh')).strftime('%Y-%m')
     every = transactions(db)
-    return {'month': month, 'bank_accounts': account_months(every, month),
+    return {'month': month, 'bank_accounts': account_months(every, month, db.run('SELECT * FROM accounts')),
             'cards_available_limit': [b for b in balances(every) if b['kind'] == 'limit']}
 
 
@@ -2587,9 +2595,9 @@ def _app(environ, start_response):
                                                'kind': kinds.get(n, ('bank', 'name'))[0], 'how': kinds.get(n, ('bank', 'name'))[1]} for n in names],
                                       'hidden': sorted(hidden)})
         if path == '/api/balances':
-            every = transactions(db)
-            kinds = account_kinds(every, db.run('SELECT * FROM accounts'))
-            return respond('200 OK', [{**b, 'account_kind': kinds.get(b['account'], ('bank', 'name'))[0]} for b in balances(every)])
+            every, typed = transactions(db), db.run('SELECT * FROM accounts')
+            kinds = account_kinds(every, typed)
+            return respond('200 OK', [{**b, 'account_kind': kinds.get(b['account'], ('bank', 'name'))[0]} for b in known_balances(every, typed)])
         if path == '/api/trail':
             return respond('200 OK', trail(db, query.get('from'), query.get('to')))
         if path == '/api/friend/settle':
