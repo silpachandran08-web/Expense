@@ -2229,28 +2229,19 @@ const usernameCard = () => state.me?.email && !state.me.username ? '<section cla
 // Everything else is one tap away (Insights keeps the full overview).
 function overview(rt, P, X) {
   const td = today(), m = td.slice(0, 7), me = state.me, name = me?.username || (me?.email || '').split('@')[0];
-  const sal = state.settings?.salary, got = salaryIn(), sp = sal ? split() : null, T = totals(X.cur);
-  const amt = sal ? sal.amount : 0, parts = sp ? [['EMIs', sp.emis, '#FDE68A'], ['Family', othersTotal(sp), '#F9A8D4'], ['Living', sp.living + sp.subs, '#A5B4FC'], ['Savings', sp.savings, '#6EE7B7']] : [];
-  if (sp) parts.push(['Free', Math.max(0, amt - parts.reduce((a, x) => a + x[1], 0)), 'rgb(255 255 255 / .35)']);
-  const whole = c => `SAR ${Math.round(c / 100).toLocaleString('en')}`;
-  const head = `<section class="ms-head"><div class="ms-top"><span>${name ? `Hi ${esc(name)} · ` : ''}${sp ? (got ? `Salary arrived ${esc(dayLabel(got._d).toLowerCase())}` : `Salary on day ${sal.day || '–'}`) : esc(monthName(m, 'long').split(' ')[0])}</span><a class="ms-link" href="#/insights?p=this">Insights ›</a></div>` +
-    (sp ? `<b class="ms-big">${whole(got ? got._c : amt * 100)}</b>` +
-      `<div class="ms-bar" aria-hidden="true">${parts.map(([, v, c]) => `<i style="width:${(v / Math.max(1, amt) * 100).toFixed(1)}%;background:${c}"></i>`).join('')}</div>` +
-      `<div class="ms-keys">${parts.map(([k, v, c]) => `<span><i style="background:${c}"></i>${k} · SAR ${Math.round(v).toLocaleString('en')}</span>`).join('')}</div>`
-    : `<span class="ms-sub">Spent this month</span><b class="ms-big">${whole(T.spent)}</b><div class="ms-bar" aria-hidden="true"><i style="width:${T.received ? Math.min(100, T.spent / T.received * 100).toFixed(1) : 0}%;background:#FDE68A"></i></div>` +
-      `<div class="ms-keys"><span>Received ${money(T.received)}</span><a class="ms-link" href="#/plan">Set your salary ›</a></div>`) + '</section>';
+  const T = totals(X.cur);  // no salary on Home: it's on Insights
+  const tdS = totals(state.all.filter(t => t._d === td)).spent, days = Math.max(1, +td.slice(8));
+  const head = `<section class="ms-head"><div class="ms-top"><span>${name ? `Hi ${esc(name)} · ` : ''}${esc(monthName(m, 'long').split(' ')[0])}</span><a class="ms-link" href="#/insights?p=this">Insights ›</a></div>` +
+    `<span class="ms-sub">Spent this month</span><b class="ms-big">${esc(state.currency)} ${Math.round(T.spent / 100).toLocaleString('en')}</b>` +
+    `<div class="ms-keys"><span>Today · ${esc(state.currency)} ${Math.round(tdS / 100).toLocaleString('en')}</span><span>Daily avg · ${esc(state.currency)} ${Math.round(T.spent / days / 100).toLocaleString('en')}</span></div></section>`;
   const buy = '<form class="ms-buy"><label for="ms-q" class="sr-only">Can I buy it?</label><div><input id="ms-q" name="q" autocomplete="off" placeholder="Can I buy it? e.g. iPhone 4000"><button class="btn">Check</button></div></form>';
-  // Coming up: each debt's next due day (overdue first), and the next salary
+  // Coming up: each debt's next due day (overdue first)
   const ev = [];
   for (const r of state.money ? liabBoard(m) : []) {
     if (!r.h.emi_minor || !r.h.due_day || r.h.balance_now <= 0) continue;
     const next = r.st === 'due' || r.st === 'late' ? r.dueOn : `${addM(m, 1)}-${pad(Math.min(r.h.due_day, daysIn(addM(m, 1))))}`;
     ev.push({ d: next, late: r.st === 'late', title: r.h.name, sub: r.st === 'late' ? r.text : r.h.kind === 'card' ? 'Card bill' : r.h.auto ? 'Auto-debit' : 'EMI',
               amount: (c => r.h.currency === 'INR' ? rupees(c).replace(/\.\d\d$/, '') : `${r.h.currency} ${Math.round(c / 100).toLocaleString('en')}`)(r.st === 'late' || r.st === 'due' ? r.left || r.h.emi_minor : r.h.emi_minor) });
-  }
-  if (sal?.day) {
-    const d = `${m}-${pad(Math.min(sal.day, daysIn(m)))}`;
-    ev.push({ d: d > td && !got ? d : `${addM(m, 1)}-${pad(Math.min(sal.day, daysIn(addM(m, 1))))}`, title: 'Salary', sub: 'Expected', amount: `+SAR ${Number(sal.amount).toLocaleString('en')}`, inc: true });
   }
   ev.sort((a, b) => (b.late - a.late) || a.d.localeCompare(b.d));
   const mon = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', { month: 'short' });
@@ -2266,6 +2257,17 @@ function overview(rt, P, X) {
   const attention = items.length ? `<details class="ms-att"><summary>${plural(items.length, 'thing')} need${items.length === 1 ? 's' : ''} attention</summary>` +
     items.map(([t, h]) => `<a href="${h}">${esc(t)} ›</a>`).join('') + '</details>' : '';
   return { html: usernameCard() + head + attention + buy + coming + tiles };
+}
+// This month's salary and how the plan splits it (EMIs, family, living, savings, free): on Insights.
+function salaryHeader() {
+  const sal = state.settings?.salary, got = salaryIn(), sp = sal ? split() : null;
+  if (!sp) return '';
+  const amt = sal.amount, parts = [['EMIs', sp.emis, '#FDE68A'], ['Family', othersTotal(sp), '#F9A8D4'], ['Living', sp.living + sp.subs, '#A5B4FC'], ['Savings', sp.savings, '#6EE7B7']];
+  parts.push(['Free', Math.max(0, amt - parts.reduce((a, x) => a + x[1], 0)), 'rgb(255 255 255 / .35)']);
+  return `<section class="ms-head"><div class="ms-top"><span>${got ? `Salary arrived ${esc(dayLabel(got._d).toLowerCase())}` : `Salary on day ${sal.day || '–'}`}</span><a class="ms-link" href="#/plan">Plan ›</a></div>` +
+    `<b class="ms-big">SAR ${Math.round(got ? got._c / 100 : amt).toLocaleString('en')}</b>` +
+    `<div class="ms-bar" aria-hidden="true">${parts.map(([, v, c]) => `<i style="width:${(v / Math.max(1, amt) * 100).toFixed(1)}%;background:${c}"></i>`).join('')}</div>` +
+    `<div class="ms-keys">${parts.map(([k, v, c]) => `<span><i style="background:${c}"></i>${k} · SAR ${Math.round(v).toLocaleString('en')}</span>`).join('')}</div></section>`;
 }
 function insights(rt, P, X) {
   if (!state.all.length) return { html: usernameCard() + chips(P) + oweAlerts() + `<section class="card">${empty('No transactions yet', 'New bank SMS will appear here within seconds once your phone forwards them.<br><a href="/import">Import your old SMS</a>')}</section>` };
@@ -2314,7 +2316,7 @@ function insights(rt, P, X) {
   const Hh = state.money && health(), hcol = { Good: 'good', Fair: 'warn', 'Needs work': 'bad' };
   const healthCard = Hh?.score != null ? `<a class="banner health ${hcol[Hh.rating]}" href="#/health"><span>Money health: <b>${Hh.rating}</b> · ${Hh.score}/100 · ${esc(Hh.checks.find(c => c.tone === 'poor')?.label || Hh.checks.find(c => c.tone === 'fair')?.label || 'all checks good')}</span>${go1}</a>` : '';
   const lalerts = oweAlerts() + liabAlerts().map(a => `<a class="banner" href="#/liabilities"><span>${esc(a)}</span>${go1}</a>`).join('');
-  return { title: 'Insights', sub: periodText(P), html: chips(P) + hero + healthCard + salaryBanner + checkin + emis + lalerts + todayCard + coming +
+  return { title: 'Insights', sub: periodText(P), html: salaryHeader() + chips(P) + hero + healthCard + salaryBanner + checkin + emis + lalerts + todayCard + coming +
     (review ? `<a class="banner" href="#/activity?${q}"><span>Needs a category · ${review}</span>${go1}</a>` : '') +
     card('Where it went', esc(state.currency), donut(cats, T.spent) + catRows(cats.slice(0, 4), T.spent, X, P) || empty('No spending in this period'), cats.length ? `#/categories?${q}` : '') +
     card('Spent, last 12 months', 'tap a month', monthBars(state.all, P.endMonth, P), `#/trends?${q}`) +
