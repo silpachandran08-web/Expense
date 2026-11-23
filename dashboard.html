@@ -196,6 +196,7 @@
   .ms-bar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: rgb(255 255 255 / .15); } .ms-bar i { display: block; height: 100%; }
   .ms-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; font-size: 12px; color: #E0E7FF; }
   .ms-keys i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .ms-warn { display: block; background: var(--warn-soft); color: var(--warn); border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 600; text-decoration: none; }
   .ms-att { background: var(--warn-soft); border-radius: 14px; padding: 0 14px; font-size: 14px; }
   .ms-att summary { cursor: pointer; padding: 11px 0; font-weight: 600; color: var(--warn); }
   .ms-att a { display: block; padding: 10px 0; border-top: 1px solid rgb(0 0 0 / .06); color: var(--text); text-decoration: none; }
@@ -1169,7 +1170,7 @@ function fetchInto(key, url, after) {
       after?.();
     } catch (e) { state.err[key] = e.message || 'no connection'; }
     finally { inflight[url] = null; }
-    if (/^#\/(money|debt|plan|analysis|overview|trail|liabilities|buy)|^$/.test(location.hash) && !typing()) render();
+    if (/^#\/(money|debt|plan|analysis|overview|insights|trail|liabilities|buy)|^$/.test(location.hash) && !typing()) render();
   })();
 }
 function loadMoney() { state.moneyAt = Date.now(); return fetchInto('money', `/api/money?${moneyQs()}`); }
@@ -1326,8 +1327,10 @@ const SPLIT_KEYS = ['emis', 'subs', 'living', 'savings'];
 function rawSplit() {
   const saved = state.settings?.allocations, d = defaultSplit();
   if (!saved) {
-    const inr = (state.money?.holdings || []).filter(h => h.kind === 'loan' && h.balance_now > 0 && h.currency === 'INR').reduce((a, h) => a + h.emi_minor, 0);
-    return { ...d, emis: inr ? Math.round(inr / 10000) * 100 : d.emis, cur: inr ? { emis: 'INR' } : {}, others: [] };
+    // EMIs in ₹ when every loan is Indian; with a SAR loan too (e.g. a car loan in Saudi), all of them together in SAR
+    const loans = (state.money?.holdings || []).filter(h => h.kind === 'loan' && h.balance_now > 0), inr = loans.filter(h => h.currency === 'INR').reduce((a, h) => a + h.emi_minor, 0);
+    const allInr = loans.length && loans.every(h => h.currency === 'INR');
+    return { ...d, emis: allInr ? Math.round(inr / 10000) * 100 : d.emis, cur: allInr ? { emis: 'INR' } : {}, others: [] };
   }
   return { ...d, others: [], ...saved, cur: { ...(saved.cur || {}) } };
 }
@@ -1353,7 +1356,7 @@ async function loadOptions() {
   const opts = debtOptions(), key = opts.map(o => o.inr).join(',') + '|' + state.rate;
   if (state.optionsKey === key) return;
   state.optionsKey = key;
-  try { const r = await fetch(`/api/money?${moneyQs()}&options=${opts.map(o => o.inr).join(',')}`); if (r.ok) { state.optionData = await r.json(); if (/^#\/(plan|health|overview)|^$/.test(location.hash) && !document.querySelector('details.txn[open], .setup input:focus')) render(); } } catch {}
+  try { const r = await fetch(`/api/money?${moneyQs()}&options=${opts.map(o => o.inr).join(',')}`); if (r.ok) { state.optionData = await r.json(); if (/^#\/(plan|health|overview|insights)|^$/.test(location.hash) && !document.querySelector('details.txn[open], .setup input:focus')) render(); } } catch {}
 }
 const chosen = () => { const c = state.settings?.debt_choice; return c && debtOptions().find(o => o.key === c.option); };
 // This month's salary SMS, if it came: the biggest SAR credit marked Salary or Income this month.
@@ -2264,7 +2267,12 @@ function salaryHeader() {
   if (!sp) return '';
   const amt = sal.amount, parts = [['EMIs', sp.emis, '#FDE68A'], ['Family', othersTotal(sp), '#F9A8D4'], ['Living', sp.living + sp.subs, '#A5B4FC'], ['Savings', sp.savings, '#6EE7B7']];
   parts.push(['Free', Math.max(0, amt - parts.reduce((a, x) => a + x[1], 0)), 'rgb(255 255 255 / .35)']);
-  return `<section class="ms-head"><div class="ms-top"><span>${got ? `Salary arrived ${esc(dayLabel(got._d).toLowerCase())}` : `Salary on day ${sal.day || '–'}`}</span><a class="ms-link" href="#/plan">Plan ›</a></div>` +
+  // Your loans' EMIs now (all of them, SAR at today's rate) against what the plan sets aside for EMIs
+  const loans = (state.money?.holdings || []).filter(h => h.kind === 'loan' && h.balance_now > 0 && h.emi_minor);
+  const real = Math.round(loans.reduce((a, h) => a + (h.currency === 'SAR' ? h.emi_minor : sarOf(h.emi_minor)), 0) / 100);
+  const short = real - sp.emis > Math.max(50, real * .05) ? `<a class="ms-warn" href="#/plan">Your plan sets aside SAR ${Math.round(sp.emis).toLocaleString('en')} for EMIs; your loans take SAR ${real.toLocaleString('en')} a month` +
+    ` (${loans.map(h => esc(h.name)).join(', ')}). Update the plan ›</a>` : '';
+  return short + `<section class="ms-head"><div class="ms-top"><span>${got ? `Salary arrived ${esc(dayLabel(got._d).toLowerCase())}` : `Salary on day ${sal.day || '–'}`}</span><a class="ms-link" href="#/plan">Plan ›</a></div>` +
     `<b class="ms-big">SAR ${Math.round(got ? got._c / 100 : amt).toLocaleString('en')}</b>` +
     `<div class="ms-bar" aria-hidden="true">${parts.map(([, v, c]) => `<i style="width:${(v / Math.max(1, amt) * 100).toFixed(1)}%;background:${c}"></i>`).join('')}</div>` +
     `<div class="ms-keys">${parts.map(([k, v, c]) => `<span><i style="background:${c}"></i>${k} · SAR ${Math.round(v).toLocaleString('en')}</span>`).join('')}</div></section>`;
@@ -2283,9 +2291,9 @@ function insights(rt, P, X) {
     proj = `<p class="proj">Projected month-end: <b>${money(Math.round(fixed + (T.spent - fixed) / P.d * P.N))}</b></p>`;
   }
   const hero = `<section class="hero" aria-live="polite"><div class="month-nav">` +
-    `<button type="button" aria-label="Previous period" ${canPrev ? `data-go="#/overview?${prevQs}"` : 'disabled'}>‹</button>` +
+    `<button type="button" aria-label="Previous period" ${canPrev ? `data-go="#/insights?${prevQs}"` : 'disabled'}>‹</button>` +
     `<span>${esc(P.label)}${P.partial ? '<i class="live" title="Updates by itself"></i>' : ''}${P.sofar ? `<small>${esc(P.sofar)}</small>` : ''}</span>` +
-    `<button type="button" aria-label="Next period" ${nextQs ? `data-go="#/overview?${nextQs}"` : 'disabled'}>›</button></div>` +
+    `<button type="button" aria-label="Next period" ${nextQs ? `data-go="#/insights?${nextQs}"` : 'disabled'}>›</button></div>` +
     `<div class="label">Spent</div><div class="total"><small>${esc(state.currency)}</small><span data-count="${T.spent}">${fmt(T.spent)}</span></div>` +
     `<span class="delta">${d === null ? 'new' : Number.isNaN(d) ? `too little in ${esc(P.prevLabel)} to compare` : `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)}% vs ${esc(P.prevLabel)}`}</span>` +
     (T.refunds ? `<div class="refunds">incl. −${fmt(T.refunds)} refunds</div>` : '') +
