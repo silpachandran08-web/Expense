@@ -2503,13 +2503,13 @@ document.addEventListener('click', async e => {
 function iPhoneSmsCard() {
   return card('Send bank SMS from this iPhone', 'Shortcuts', '<ol class="how">' +
     '<li>Open <b>Shortcuts</b> → <b>Automation</b> → <b>+</b> → <b>Message</b>.</li>' +
-    '<li><b>Message Contains</b>: <code>SAR</code>. Leave Sender empty. Choose <b>Run Immediately</b>, turn off <b>Notify When Run</b>, tap <b>Next</b> → <b>New Blank Automation</b>.</li>' +
+    '<li><b>Message Contains</b>: one <b>space</b> (tap the space bar once), so every message runs it; the site keeps only bank messages with an amount and drops the rest unread. Leave Sender empty. Choose <b>Run Immediately</b>, turn off <b>Notify When Run</b>, tap <b>Next</b> → <b>New Blank Automation</b>.</li>' +
     '<li>Add the action <b>Get Contents of URL</b>. URL:<br><code class="copy">' + esc(location.origin) + '/sms</code></li>' +
     // The server accepts a person's sync key here, not their sign-in password (only the site owner's password works)
     '<li>Tap <b>Show More</b>. Method <b>POST</b>. Add a header: key <code>Authorization</code>, value <code>Bearer</code> + a space + ' +
       (state.me?.sync_key ? `your <b>sync key</b> (not your password):<br><code class="copy" style="overflow-wrap:anywhere">${esc(state.me.sync_key)}</code> <button type="button" class="btn" data-copy="${esc('Bearer ' + state.me.sync_key)}">Copy “Bearer + key”</button>` : 'your sign-in password') + '</li>' +
     '<li>Request Body <b>JSON</b>, two Text fields: <code>sender</code> = <b>Shortcut Input → Sender</b> (or type <code>iPhone</code>), and <code>body</code> = <b>Shortcut Input → Content</b>. Tap <b>Done</b>.</li>' +
-    '<li>Duplicate it (long-press) for <code>SR</code>, <code>ريال</code> and <code>ر.س</code> (Arabic SMS), and <code>INR</code> for Indian accounts. Each automation matches one word.</li></ol>' +
+    '</ol>' +
     '<p class="muted">After the next card payment, “Phone connection” below should say <b>saved</b>. SMS that arrive while the phone is offline are not resent: add those with “Save as transaction” below.</p>');
 }
 function installCard() {

@@ -29,8 +29,8 @@ import java.util.concurrent.TimeUnit
  * The server ignores ones it already has, so sending a message twice is harmless.
  */
 object Sync {
-    // Same pre-filter as before: only SMS that show an amount in SAR or INR ever leave the phone.
-    private val MONEY = Regex("(?i)(rs\\.?|inr|₹|sar|sr|ريال)\\s*:?\\s*[0-9٠-٩]|[0-9٠-٩]\\s*(sar|sr|ريال)")
+    // Only SMS that show an amount in a currency ever leave the phone (the server reads the same ones).
+    private val MONEY = Regex("(?i)(rs\\.?|inr|₹|sar|sr|ريال|ر\\.س|usd|\\$)\\s*:?\\s*[0-9٠-٩]|[0-9٠-٩]\\s*(sar|sr|ريال|ر\\.س|usd)")
     private const val BATCH = 200
     private const val OVERLAP_MS = 6 * 60 * 60 * 1000L  // look a little further back each time, in case the inbox was written late
 

@@ -1056,6 +1056,18 @@ class AppTest(unittest.TestCase):
         hers = json.loads(self.call('GET', '/api/search', query='q=harish', **silpa)[1])['results'][0]
         self.assertEqual((hers['peer']['who'], hers['category']), ('Harish', 'Family'))
 
+    def test_phone_forwarding_every_message_keeps_only_money(self):
+        post = lambda sender, body: json.loads(self.call('POST', '/sms', json.dumps({'sender': sender, 'body': body}).encode())[1])
+        self.assertEqual(post('Mum', 'Call me when you are free')['ignored'], 'not about money')
+        self.assertEqual(post('+966 50 123 4567', 'I sent you SAR 200 for dinner')['ignored'], 'not about money')  # a person, not a bank
+        self.assertTrue(post('D360', 'Purchase\nAmount: SAR 25.00\nAt: STARBUCKS')['stored'])
+        db = server.DB()
+        try:
+            self.assertEqual([d['sender'] for d in db.run('SELECT sender FROM phone_deliveries')], ['D360'])  # chats leave no trace
+            self.assertEqual(db.run('SELECT COUNT(*) AS n FROM skipped_sms')[0]['n'], 0)
+        finally:
+            db.close()
+
     def test_no_one_sees_anyone_elses_data(self):
         db = server.DB()
         try:

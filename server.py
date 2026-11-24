@@ -27,7 +27,7 @@ import base64
 from bisect import bisect_left
 from datetime import date
 
-from parse import AD, ARABIC_DIGITS, account_of, categorize, compile_rules, merchant_of, parse
+from parse import AD, ARABIC_DIGITS, CUR_FIRST, NUM_FIRST, account_of, categorize, compile_rules, merchant_of, parse
 from statement import StatementError, read_statement, span
 
 HERE = Path(__file__).parent
@@ -150,6 +150,16 @@ IGNORED = 'Ignored'  # a category like any other, except it never counts toward 
 OWN_TRANSFER = 'Own transfer'  # money moved between your own accounts: not spending, not income
 NOT_COUNTED = {IGNORED, OWN_TRANSFER}
 # Advert senders: Saudi rules put "AD" on promotional sender names ("Mobily-AD"); Indian promotional ones end in "-P".
+# A phone can forward every message it gets (iPhone: "Message Contains" a space). Chats and anything without an amount in
+# a currency are dropped unread and unrecorded; a sender that is a full phone number is a person, not a bank (banks use names or short codes).
+PERSON_SENDER = re.compile(r'^\+?[\d\s()-]{8,}$')
+
+
+def not_money(sender, body):
+    text = body.translate(ARABIC_DIGITS)
+    return bool(PERSON_SENDER.match(sender.strip())) or not (CUR_FIRST.search(text) or NUM_FIRST.search(text))
+
+
 AD_SENDER = re.compile(r'(?:^ad[-_ ]|[-_ ]ad$|[-_ ]adv$|-p$)', re.I)
 # A refund from a merchant with no category is money back on spending, not income: it waits for a category.
 REFUND = re.compile(r'\b(?:refund(?:ed)?|reversal|reversed|reverse|cashback)\b|استرداد|مسترد', re.I)
@@ -2613,6 +2623,8 @@ def _app(environ, start_response):
                 peers_quietly(db)
             return respond('200 OK', {'received': len(batch), 'stored': len(stored)})
         if method == 'POST':
+            if not_money(*sms[:2]):  # a chat or a message with no amount: nothing is kept, not even in the phone log
+                return respond('200 OK', {'stored': False, 'ignored': 'not about money'})
             stored = store_sms(db, *sms)
             if stored:
                 peers_quietly(db)
