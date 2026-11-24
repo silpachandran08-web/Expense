@@ -18,6 +18,7 @@ TOKEN = 'test-token-1234567890'
 
 SAMPLES = [
     # (sms, amount_minor, currency, direction, merchant, category)
+    ('Bill payment\nAmount: SAR 120.00\nBiller: STC', 12000, 'SAR', 'debit', 'STC', 'Bills & Utilities'),
     ('Sent Rs.250.00 From HDFC Bank A/C *1234 To SWIGGY On 18/10/26 Ref 628712345678 Not You? Call 18002586161',
      25000, 'INR', 'debit', 'SWIGGY', 'Food'),
     ('Rs 1,499.00 debited from A/c XX5678 on 12-Oct-26 to VPA netflix.upi@hdfcbank (UPI Ref No 6281234567). -ICICI Bank',

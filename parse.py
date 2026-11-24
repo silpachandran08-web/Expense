@@ -21,7 +21,7 @@ LEFT_OVER = re.compile(r'\b(?:avl|avbl|avail|available|aval)\.?\s*(?:credit\s+)?
                        r'|\b(?:bal(?:ance)?|limit)\s*(?:is|:)\s*' + _CUR + r'?\s*[\d,]+(?:\.\d+)?', re.I)
 
 # Arabic words are matched as substrings because Arabic attaches prefixes ("بال", "و") to words.
-DEBIT = re.compile(r'\b(?:debited|spent|paid|sent|withdrawn|withdrawal|purchase|outgoing|pos|international transfer)\b|شراء|خصم|سحب|صادرة|سداد|دفع', re.I)
+DEBIT = re.compile(r'\b(?:debited|spent|paid|sent|withdrawn|withdrawal|purchase|outgoing|pos|international transfer|bill payment)\b|شراء|خصم|سحب|صادرة|سداد|دفع', re.I)
 CREDIT = re.compile(r'\b(?:credited|received|deposited|deposit|incoming|refunded|refund|reversal|reversed|reverse|salary|payroll)\b|إيداع|ايداع|واردة|استرداد|مسترد|راتب', re.I)
 # Messages that mention money but are not a completed transaction.
 SKIP = re.compile(
@@ -36,7 +36,7 @@ AD = re.compile(
 _END = r'(?=\s+(?:on|via|ref|refno|upi|avl|avbl|txn|from|to|using|for|في)\b|[,;(\n]|\.(?=\s|$)|$)'  # a dot ends the name only as a full stop, so "NOON.COM" stays whole
 MERCHANT = [
     re.compile(r'\bVPA\s+([\w.\-]+@[\w.\-]+)', re.I),
-    re.compile(r'\b(?:at|to|towards|trf to|info|لدى|إلى|الى)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
+    re.compile(r'\b(?:at|to|towards|trf to|info|biller|لدى|إلى|الى)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
     re.compile(r'\b(?:from|من)(?:\s*:\s*|\s+)([\w&@.\-* ]{2,40}?)' + _END, re.I),
     re.compile(r';\s*([A-Za-z][\w&.\- ]{1,40}?)\s+credited\b'),  # 'A/c XX1234 debited by Rs 15,000; ANIL K credited'
 ]

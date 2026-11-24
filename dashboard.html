@@ -2509,7 +2509,7 @@ function iPhoneSmsCard() {
     '<li>Tap <b>Show More</b>. Method <b>POST</b>. Add a header: key <code>Authorization</code>, value <code>Bearer</code> + a space + ' +
       (state.me?.sync_key ? `your <b>sync key</b> (not your password):<br><code class="copy" style="overflow-wrap:anywhere">${esc(state.me.sync_key)}</code> <button type="button" class="btn" data-copy="${esc('Bearer ' + state.me.sync_key)}">Copy “Bearer + key”</button>` : 'your sign-in password') + '</li>' +
     '<li>Request Body <b>JSON</b>, two Text fields: <code>sender</code> = <b>Shortcut Input → Sender</b> (or type <code>iPhone</code>), and <code>body</code> = <b>Shortcut Input → Content</b>. Tap <b>Done</b>.</li>' +
-    '<li>Duplicate it (long-press) for <code>SR</code> and <code>ريال</code>, and <code>INR</code> for Indian accounts. Each automation matches one word.</li></ol>' +
+    '<li>Duplicate it (long-press) for <code>SR</code>, <code>ريال</code> and <code>ر.س</code> (Arabic SMS), and <code>INR</code> for Indian accounts. Each automation matches one word.</li></ol>' +
     '<p class="muted">After the next card payment, “Phone connection” below should say <b>saved</b>. SMS that arrive while the phone is offline are not resent: add those with “Save as transaction” below.</p>');
 }
 function installCard() {
