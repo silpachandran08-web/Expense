@@ -491,6 +491,16 @@ class StoreMixin:
         db.reread_amounts()  # stored before this fix: now Ignored, and out of the balances
         self.assertEqual([b['account'] for b in server.balances(server.transactions(db))], ['HDFCBK · Account •1234'])
 
+    def test_iphone_transfer_in_joins_the_phones_card(self):
+        db = self.db
+        server.save_account(db, '', 'D360 card 0785', 'SAR', balance=Decimal('861.00'))  # typed now; the SMS below come after
+        server.store_sms(db, 'iPhone', 'Purchase\nAmount: SAR 50.00\nCard: **0785\nAt: CAFE', '2030-01-24T10:00:00+03:00')
+        server.store_sms(db, 'iPhone', 'Incoming Internal transfer: D360 Bank\nAmount: SAR 2,000.00\nFrom: A PERSON\nIBAN: ****0440', '2030-01-26T07:13:00+03:00')
+        every = server.transactions(db)
+        self.assertEqual({t['account'] for t in every}, {'D360 card 0785'})
+        row = server.account_months(every, '2030-01', db.run('SELECT * FROM accounts'))[0]
+        self.assertEqual((row['in'], row['since']), (2000.0, 1950.0))
+
     def test_rename_remove_and_add_accounts(self):
         db = self.db
         server.store_sms(db, 'SAB', 'PoS Purchase\nAmount: SAR 45.50\nCard: *2080\nAt: PANDA', '2026-11-20T10:00:00+03:00')
@@ -510,7 +520,8 @@ class StoreMixin:
         server.store_sms(db, 'SNB', 'Purchase\nAmount: SAR 100.00\nAccount: 7788\nAt: JARIR', '2026-12-31T10:00:00+03:00')
         typed = db.run('SELECT * FROM accounts')
         row = next(r for r in server.account_months(server.transactions(db), '2026-12', typed) if r['account'] == 'SNB salary 7788')
-        self.assertEqual((row['current'], row['out'], row['closing'], row['typed']), (1000.0, 100.0, 900.0, True))
+        # Balance now: the 1,000 you typed less the purchase after it
+        self.assertEqual((row['current'], row['stated'], row['since'], row['out'], row['closing'], row['typed']), (900.0, 1000.0, -100.0, 100.0, 900.0, True))
         # Credit or debit: read from the card's own SMS, until you set it.
         server.store_sms(db, 'ICICI', 'INR 3,200.50 spent on ICICI Bank Credit Card XX9012 at AMAZON. Avl Limit: INR 1,20,000.00', '2026-11-20T10:00:00+05:30')
         server.store_sms(db, 'AlRajhi', 'PoS Purchase\nBy: mada *5678\nAmount: SAR 20.00\nAt: CAFE', '2026-11-20T10:00:00+03:00')

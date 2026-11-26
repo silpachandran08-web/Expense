@@ -422,6 +422,11 @@ def transactions(db, month=None, currency=None):
     only = {head.split(' · ')[0]: [f'{head}•{d}' for d in ds] for head, ds in ends.items() if head.endswith('Account ')}
     acct = {r['id']: only[acct[r['id']]][0] if not r['statement_id'] and len(only.get(acct[r['id']], ())) == 1 else acct[r['id']]
             for r in rows}
+    # An iPhone Shortcut sends every SMS as 'iPhone' (no bank name): one that names no account (a transfer in) is from
+    # the phone's account when all its other SMS are. shortcut: a phone with two banks leaves these under 'iPhone'.
+    phone = {acct[r['id']] for r in rows if r['sender'] == 'iPhone' and not r['statement_id'] and acct[r['id']] != 'iPhone'}
+    if len(phone) == 1:
+        acct = {k: next(iter(phone)) if v == 'iPhone' else v for k, v in acct.items()}
     mine = db.run('SELECT name, label, hidden FROM accounts')
     renamed = {a['label']: a['name'] for a in mine if a['label']}
     acct = {k: renamed.get(v, v) for k, v in acct.items()}
@@ -921,9 +926,9 @@ def account_months(every, month, typed=()):
         before = lambda x: now - sum(v for w, v in mine if x <= w <= at) if x <= at else now + sum(v for w, v in mine if at < w < x)
         got = sum(v for w, v in mine if start <= w < end and v > 0)
         spent = -sum(v for w, v in mine if start <= w < end and v < 0)
-        opening = before(start)
+        opening, since = before(start), sum(v for w, v in mine if w > at)  # money in and out after the stated balance
         out.append({'account': b['account'], 'currency': b['currency'], 'opening': opening / 100, 'in': got / 100, 'out': spent / 100,
-                    'closing': (opening + got - spent) / 100, 'current': b['amount'], 'as_of': b['day'], 'typed': b.get('typed', False),
+                    'closing': (opening + got - spent) / 100, 'current': (now + since) / 100, 'stated': b['amount'], 'since': since / 100, 'as_of': b['day'], 'typed': b.get('typed', False),
                     'txn_id': b.get('txn_id'), 'body': b.get('body', '')})
     return out
 

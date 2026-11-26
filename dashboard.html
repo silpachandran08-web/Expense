@@ -1846,7 +1846,7 @@ function balancesPage(rt, P) {
       `<div class="actions"><button class="btn">Save</button><button type="button" class="link danger" data-acct-remove="${esc(n)}" data-added="${x.added && !x.transactions}">${x.added && !x.transactions ? 'Delete' : 'Remove'}</button></div>` +
       '<p class="muted small">Remove hides it and stops counting its messages (for things like provident-fund SMS). You can show it again below.</p></form></details>'; };
   const rows = A.map(a => `<section class="card"><h2>${splitAcct(a.account)}<span>${esc(a.currency)}</span></h2>${kindTag(a.account)}` +
-    `<div class="big"><span class="muted">Balance now · ${a.typed ? 'you entered it' : 'bank said'} on ${esc(dayLabel(a.as_of))}</span><b>${cur(a.current, a.currency)}</b></div>` +
+    `<div class="big"><span class="muted">Balance now · ${a.typed ? 'you entered' : 'bank said'} ${a.since ? `${cur(a.stated, a.currency)} ` : ''}on ${esc(dayLabel(a.as_of))}${a.since ? `, ${a.since > 0 ? '+' : '−'}${cur(Math.abs(a.since), a.currency)} since` : ''}</span><b>${cur(a.current, a.currency)}</b></div>` +
     (a.txn_id ? `<details class="bal-src"><summary>Show the message</summary><pre>${esc(a.body)}</pre>` +
       `<button type="button" class="link danger" data-not-balance="${a.txn_id}">Not a real balance (advert): ignore it</button></details>` : '') +
     `<dl class="carry"><dt>Carried from ${esc(prev)}</dt><dd>${cur(a.opening, a.currency)}</dd>` +
