@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wiggle Party</title>
+<style>
+html,body{margin:0;height:100%;background:#12002e;color:#fff;font-family:"Arial Rounded MT Bold","Trebuchet MS",sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:radial-gradient(circle,#3a0ca3,#12002e);text-align:center;padding:16px}
+h1{font-size:clamp(48px,9vw,120px);margin:0;color:#ffd60a;text-shadow:6px 6px 0 #f72585}
+.row{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+button{font:inherit;font-size:clamp(22px,3vw,36px);padding:18px 36px;border:0;border-radius:999px;background:#ffd60a;color:#12002e;cursor:pointer;box-shadow:0 8px 0 #c9a100}
+button:active{transform:translateY(6px);box-shadow:0 2px 0 #c9a100}
+button.alt{background:#4cc9f0;box-shadow:0 8px 0 #2a8fb0}
+label{font-size:18px;opacity:.9}
+#hud{position:fixed;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;font-size:clamp(24px,4vw,56px);text-shadow:3px 3px 0 #000;pointer-events:none}
+#back{position:fixed;bottom:16px;right:16px;font-size:18px;padding:10px 20px}
+[hidden]{display:none!important}
+#err{color:#ff8fa3;font-size:20px;max-width:640px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" hidden><span id="score">0</span><span id="msg"></span></div>
+<button id="back" class="alt" hidden>Menu</button>
+<div id="menu">
+  <h1>Wiggle Party!</h1>
+  <div class="row">
+    <button id="b1">Balloon Pop</button>
+    <button id="b2" class="alt">Freeze Dance</button>
+  </div>
+  <label>Motion sensitivity <input id="sens" type="range" min="10" max="80" value="35"> (lower number = more sensitive)</label>
+  <label><input id="fs" type="checkbox" checked> Full screen (for the projector)</label>
+  <div id="err"></div>
+</div>
+<script>
+{
+const $ = id => document.getElementById(id);
+const cv = $('c'), cx = cv.getContext('2d');
+const GW = 80, GH = 60;                       // motion grid resolution
+const small = document.createElement('canvas'); small.width = GW; small.height = GH;
+const sx = small.getContext('2d', {willReadFrequently: true});
+const video = document.createElement('video'); video.playsInline = true; video.muted = true;
+let prev = null, motion = new Uint8Array(GW * GH), mode = null, score = 0, last = 0;
+let ac = null;
+
+// Pure function: marks grid cells whose brightness changed more than threshold.
+function diff(a, b, out, thr) {
+  let n = 0;
+  for (let i = 0; i < out.length; i++) { out[i] = Math.abs(a[i] - b[i]) > thr ? 1 : 0; n += out[i]; }
+  return n;
+}
+console.assert(diff([0, 100, 50], [0, 10, 45], new Uint8Array(3), 30) === 1, 'diff self-check');
+
+function lum() {
+  sx.save(); sx.scale(-1, 1); sx.drawImage(video, -GW, 0, GW, GH); sx.restore(); // mirror like a mirror
+  const d = sx.getImageData(0, 0, GW, GH).data, g = new Float32Array(GW * GH);
+  for (let i = 0; i < g.length; i++) g[i] = d[i*4] * .3 + d[i*4+1] * .59 + d[i*4+2] * .11;
+  return g;
+}
+// How much motion is near screen point (x,y) within radius r, as a fraction 0..1
+function motionAt(x, y, r) {
+  const gx = x / cv.width * GW, gy = y / cv.height * GH, gr = Math.max(1, r / cv.width * GW);
+  let hit = 0, tot = 0;
+  for (let j = Math.floor(gy - gr); j <= gy + gr; j++) for (let i = Math.floor(gx - gr); i <= gx + gr; i++) {
+    if (i < 0 || j < 0 || i >= GW || j >= GH) continue;
+    tot++; hit += motion[j * GW + i];
+  }
+  return tot ? hit / tot : 0;
+}
+
+// ---------- sound (synthesised, no files) ----------
+function tone(f, t0, dur, type = 'sine', vol = .2, slide = 0) {
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, t0 + dur);
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + dur);
+  o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + dur);
+}
+const popSound = big => { const t = ac.currentTime; tone(big ? 300 : 600 + Math.random()*400, t, .15, 'square', .15, 80); if (big) [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i*.08, .2, 'triangle', .2)); };
+const boing = () => tone(150, ac.currentTime, .5, 'sine', .3, 600);
+
+// ---------- Balloon Pop ----------
+const COLORS = ['#f72585','#ffd60a','#4cc9f0','#80ed99','#ff9f1c','#b5179e','#ff595e'];
+const WORDS = ['POP!','BOOM!','YAY!','SPLAT!','WHEE!','BONK!','ZING!'];
+let balloons = [], bits = [], texts = [];
+function newBalloon() {
+  const r = cv.height * (.06 + Math.random() * .05), star = Math.random() < .08;
+  balloons.push({x: r + Math.random() * (cv.width - 2*r), y: cv.height + r, r, vy: cv.height * (.08 + Math.random()*.12),
+    c: star ? '#ffd60a' : COLORS[Math.random()*COLORS.length|0], star, wob: Math.random()*6, face: Math.random()*3|0});
+}
+function drawBalloon(b, t) {
+  const x = b.x + Math.sin(t*2 + b.wob) * b.r * .3, y = b.y, r = b.r;
+  cx.strokeStyle = '#fff8'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(x, y + r*1.15);
+  cx.quadraticCurveTo(x + r*.3, y + r*1.7, x, y + r*2.3); cx.stroke();
+  cx.fillStyle = b.c;
+  if (b.star) { cx.beginPath(); for (let k = 0; k < 10; k++) { const a = k*Math.PI/5 - Math.PI/2 + t, rr = k%2 ? r*.5 : r*1.15; cx.lineTo(x + Math.cos(a)*rr, y + Math.sin(a)*rr); } cx.fill(); }
+  else { cx.beginPath(); cx.ellipse(x, y, r, r*1.15, 0, 0, 7); cx.fill();
+    cx.fillStyle = '#fff6'; cx.beginPath(); cx.ellipse(x - r*.4, y - r*.45, r*.18, r*.3, -.5, 0, 7); cx.fill(); }
+  // silly face
+  cx.fillStyle = '#12002e'; cx.strokeStyle = '#12002e'; cx.lineWidth = r*.08;
+  const e = r*.12; cx.beginPath(); cx.arc(x - r*.3, y - r*.1, e, 0, 7); cx.arc(x + r*.3, y - r*.1, e*(b.face === 1 ? .4 : 1), 0, 7); cx.fill();
+  cx.beginPath();
+  if (b.face === 2) cx.arc(x, y + r*.35, r*.15, 0, 7); else cx.arc(x, y + r*.15, r*.35, .2, Math.PI - .2);
+  cx.stroke();
+  if (b.face === 0) { cx.fillStyle = '#ff5d8f'; cx.beginPath(); cx.ellipse(x, y + r*.55, r*.12, r*.18, 0, 0, 7); cx.fill(); } // tongue
+}
+function balloonStep(dt, t) {
+  if (balloons.length < 4 + Math.min(8, score/10) && Math.random() < dt * 2.5) newBalloon();
+  for (const b of balloons) {
+    b.y -= b.vy * dt;
+    if (motionAt(b.x, b.y, b.r) > .18) {
+      b.dead = true; score += b.star ? 5 : 1; popSound(b.star);
+      for (let k = 0; k < 24; k++) { const a = Math.random()*7, s = cv.height*(.2 + Math.random()*.6); bits.push({x: b.x, y: b.y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, c: b.c, life: 1}); }
+      texts.push({x: b.x, y: b.y, s: b.star ? 'SUPER STAR!' : WORDS[Math.random()*WORDS.length|0], life: 1});
+    }
+    if (b.y < -b.r*3) b.dead = true;
+  }
+  balloons = balloons.filter(b => !b.dead);
+  balloons.forEach(b => drawBalloon(b, t));
+  $('msg').textContent = 'Wave to pop!';
+}
+
+// ---------- Freeze Dance ----------
+const TUNE = [392, 523, 659, 523, 587, 494, 392, 440];
+let fz = null;
+function freezeStep(dt) {
+  const now = performance.now() / 1000;
+  if (!fz || now > fz.until) {
+    const dancing = !fz || !fz.dancing;
+    fz = {dancing, until: now + (dancing ? 5 + Math.random()*6 : 4), beat: 0, wobble: 0, next: now};
+    if (!dancing) { tone(880, ac.currentTime, .3, 'square', .2, 220); }
+  }
+  const moved = motion.reduce((a, v) => a + v, 0) / motion.length;
+  if (fz.dancing) {
+    if (now >= fz.next) { tone(TUNE[fz.beat++ % TUNE.length], ac.currentTime, .25, 'triangle', .2); tone(110, ac.currentTime, .1, 'sine', .3); fz.next = now + .25; }
+    if (moved > .02) score += dt * 2;
+    big('DANCE!', '#80ed99', 1 + Math.sin(now*8)*.05);
+    $('msg').textContent = 'Move move move!';
+  } else {
+    const left = fz.until - now;
+    if (left < 3.2 && moved > .03) { fz.wobble += dt; if (Math.random() < dt*3) boing(); }
+    // paint the wiggly parts red so everyone can see who moved
+    cx.fillStyle = '#ff004480';
+    const cw = cv.width / GW, ch = cv.height / GH;
+    for (let i = 0; i < motion.length; i++) if (motion[i]) cx.fillRect((i % GW) * cw, (i / GW | 0) * ch, cw, ch);
+    big(left > 3.2 ? 'FREEZE!' : fz.wobble > .4 ? 'WOBBLY JELLY!' : 'STATUES...', '#4cc9f0', 1);
+    if (left < .1 && fz.wobble <= .4) { score += 5; texts.push({x: cv.width/2, y: cv.height*.7, s: 'PERFECT STATUES! +5', life: 1}); }
+    $('msg').textContent = 'Don’t move!';
+  }
+}
+function big(s, c, k) {
+  cx.save(); cx.translate(cv.width/2, cv.height/2); cx.scale(k, k);
+  cx.font = `bold ${cv.height*.16|0}px "Arial Rounded MT Bold",sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.lineWidth = cv.height*.02; cx.strokeStyle = '#12002e'; cx.strokeText(s, 0, 0); cx.fillStyle = c; cx.fillText(s, 0, 0); cx.restore();
+}
+
+// ---------- main loop ----------
+function frame(ms) {
+  if (!mode) return;
+  const t = ms / 1000, dt = Math.min(.05, t - last || .016); last = t;
+  if (cv.width !== innerWidth || cv.height !== innerHeight) { cv.width = innerWidth; cv.height = innerHeight; }
+  if (video.readyState >= 2) { const g = lum(); if (prev) diff(g, prev, motion, +$('sens').value); prev = g; }
+  // mirrored, dimmed camera so kids see themselves
+  cx.save(); cx.globalAlpha = .45; cx.scale(-1, 1); cx.drawImage(video, -cv.width, 0, cv.width, cv.height); cx.restore();
+  cx.fillStyle = '#12002e70'; cx.fillRect(0, 0, cv.width, cv.height);
+  if (mode === 'balloon') {
+    const cw = cv.width / GW, ch = cv.height / GH;   // sparkle trail where kids move
+    for (let i = 0; i < motion.length; i++) if (motion[i]) { cx.fillStyle = COLORS[i % COLORS.length] + '90'; cx.beginPath(); cx.arc((i % GW + .5)*cw, ((i/GW|0) + .5)*ch, cw*.4, 0, 7); cx.fill(); }
+    balloonStep(dt, t);
+  } else freezeStep(dt);
+  for (const p of bits) { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += cv.height*dt; p.life -= dt*1.2; cx.fillStyle = p.c; cx.globalAlpha = Math.max(0, p.life); cx.fillRect(p.x, p.y, 10, 10); }
+  for (const s of texts) { s.y -= 60*dt; s.life -= dt*.8; cx.globalAlpha = Math.max(0, s.life); cx.font = `bold ${cv.height*.07|0}px sans-serif`; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 6; cx.strokeText(s.s, s.x, s.y); cx.fillText(s.s, s.x, s.y); }
+  cx.globalAlpha = 1;
+  bits = bits.filter(p => p.life > 0); texts = texts.filter(s => s.life > 0);
+  $('score').textContent = '★ ' + Math.floor(score);
+  requestAnimationFrame(frame);
+}
+
+async function start(m) {
+  $('err').textContent = '';
+  try {
+    ac = ac || new AudioContext(); ac.resume();
+    if (!video.srcObject) { video.srcObject = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}}); await video.play(); }
+  } catch (e) { $('err').textContent = 'Could not open the webcam: ' + e.message + '. Allow camera access in the browser and try again.'; return; }
+  if ($('fs').checked) document.documentElement.requestFullscreen?.().catch(() => {});
+  mode = m; score = 0; balloons = []; bits = []; texts = []; fz = null; prev = null;
+  $('menu').hidden = true; $('hud').hidden = false; $('back').hidden = false;
+  requestAnimationFrame(frame);
+}
+function menu() { mode = null; $('menu').hidden = false; $('hud').hidden = true; $('back').hidden = true; document.fullscreenElement && document.exitFullscreen(); }
+$('b1').onclick = () => start('balloon');
+$('b2').onclick = () => start('freeze');
+$('back').onclick = menu;
+addEventListener('keydown', e => { if (e.key === 'Escape') menu(); });
+}
+</script>
+</body>
+</html>
