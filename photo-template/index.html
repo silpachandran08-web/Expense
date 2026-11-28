@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Template</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 720px; background: #f5f5f7; color: #222; }
+  h1 { font-size: 1.4rem; }
+  section { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; margin: 8px 0 4px; font-weight: 600; }
+  select, input, button { font: inherit; }
+  button { padding: 8px 16px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
+  button:disabled { background: #9ca3af; cursor: default; }
+  canvas { max-width: 100%; display: block; margin-top: 12px; border: 1px solid #ddd; touch-action: none; }
+  textarea { width: 100%; box-sizing: border-box; font-family: monospace; height: 4em; }
+  .hint { color: #666; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>Photo Template</h1>
+
+<section>
+  <label for="tpl">1. Choose a template</label>
+  <select id="tpl"></select>
+  <label for="photo">2. Upload your photo</label>
+  <input id="photo" type="file" accept="image/*">
+  <p class="hint">Drag the photo to move it. Use the slider to zoom.</p>
+  <label for="zoom">Zoom</label>
+  <input id="zoom" type="range" min="1" max="3" step="0.01" value="1">
+  <canvas id="out"></canvas>
+  <p><button id="dl" disabled>Download</button></p>
+</section>
+
+<details>
+  <summary>Add a new template</summary>
+  <section>
+    <label for="newtpl">Template image</label>
+    <input id="newtpl" type="file" accept="image/*">
+    <p class="hint">Drag on the image to mark the rectangle where the photo goes.
+      It's added to the list above for this visit. To keep it, put the image in
+      <code>templates/</code> and paste the line below into <code>templates/templates.json</code>.</p>
+    <canvas id="mark"></canvas>
+    <textarea id="json" readonly></textarea>
+  </section>
+</details>
+
+<script>
+const $ = id => document.getElementById(id);
+const out = $('out'), ctx = out.getContext('2d');
+let templates = [], tplImg = null, photo = null, offset = { x: 0, y: 0 };
+
+const loadImg = src => new Promise((ok, fail) => {
+  const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src;
+});
+const fileUrl = input => input.files[0] && URL.createObjectURL(input.files[0]);
+// canvas is CSS-scaled; convert a pointer event to canvas pixels
+const toCanvas = (cv, e) => {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height };
+};
+
+function addOption(t) {
+  templates.push(t);
+  $('tpl').add(new Option(t.name, templates.length - 1));
+}
+
+async function pickTemplate() {
+  const t = templates[$('tpl').value];
+  if (!t) return;
+  tplImg = await loadImg(t.src || 'templates/' + t.file);
+  offset = { x: 0, y: 0 };
+  draw();
+}
+
+function draw() {
+  if (!tplImg) return;
+  const t = templates[$('tpl').value];
+  const [x, y, w, h] = t.rect;
+  out.width = tplImg.width; out.height = tplImg.height;
+  ctx.drawImage(tplImg, 0, 0);
+  if (photo) {
+    // cover-fit the photo in the rectangle, then apply zoom and drag offset
+    const s = Math.max(w / photo.width, h / photo.height) * $('zoom').value;
+    const pw = photo.width * s, ph = photo.height * s;
+    // keep the rectangle fully covered while dragging
+    offset.x = Math.min(Math.max(offset.x, (w - pw) / 2), (pw - w) / 2);
+    offset.y = Math.min(Math.max(offset.y, (h - ph) / 2), (ph - h) / 2);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.drawImage(photo, x + (w - pw) / 2 + offset.x, y + (h - ph) / 2 + offset.y, pw, ph);
+    ctx.restore();
+  }
+  $('dl').disabled = !photo;
+}
+
+$('tpl').onchange = pickTemplate;
+$('zoom').oninput = draw;
+$('photo').onchange = async () => {
+  const url = fileUrl($('photo'));
+  if (!url) return;
+  try { photo = await loadImg(url); } catch { alert('Could not read that image.'); return; }
+  offset = { x: 0, y: 0 }; $('zoom').value = 1; draw();
+};
+
+let drag = null;
+out.onpointerdown = e => { if (photo) { drag = toCanvas(out, e); out.setPointerCapture(e.pointerId); } };
+out.onpointermove = e => {
+  if (!drag) return;
+  const p = toCanvas(out, e);
+  offset.x += p.x - drag.x; offset.y += p.y - drag.y; drag = p; draw();
+};
+out.onpointerup = () => drag = null;
+
+$('dl').onclick = () => out.toBlob(b => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = 'photo.png'; a.click();
+}, 'image/png');
+
+// --- Add a new template: drag a rectangle on it ---
+const mark = $('mark'), mctx = mark.getContext('2d');
+let markImg = null, markName = '', start = null, rect = null;
+
+$('newtpl').onchange = async () => {
+  const url = fileUrl($('newtpl'));
+  if (!url) return;
+  try { markImg = await loadImg(url); } catch { alert('Could not read that image.'); return; }
+  markName = $('newtpl').files[0].name;
+  mark.width = markImg.width; mark.height = markImg.height;
+  rect = null; drawMark();
+};
+
+function drawMark() {
+  mctx.drawImage(markImg, 0, 0);
+  if (!rect) return;
+  mctx.lineWidth = Math.max(2, mark.width / 300);
+  mctx.strokeStyle = '#ef4444'; mctx.fillStyle = 'rgba(239,68,68,.25)';
+  mctx.fillRect(...rect); mctx.strokeRect(...rect);
+}
+
+mark.onpointerdown = e => { if (markImg) { start = toCanvas(mark, e); mark.setPointerCapture(e.pointerId); } };
+mark.onpointermove = e => {
+  if (!start) return;
+  const p = toCanvas(mark, e);
+  rect = [Math.min(start.x, p.x), Math.min(start.y, p.y), Math.abs(p.x - start.x), Math.abs(p.y - start.y)].map(Math.round);
+  drawMark();
+};
+mark.onpointerup = () => {
+  start = null;
+  if (!rect || rect[2] < 10 || rect[3] < 10) return;
+  const entry = { name: markName.replace(/\.[^.]+$/, ''), file: markName, rect };
+  $('json').value = JSON.stringify(entry) + ',';
+  addOption({ ...entry, src: markImg.src });
+  $('tpl').value = templates.length - 1;
+  pickTemplate();
+};
+
+fetch('templates/templates.json')
+  .then(r => r.json())
+  .then(list => { list.forEach(addOption); pickTemplate(); })
+  .catch(() => alert('Could not load templates/templates.json'));
+</script>
+</body>
+</html>
