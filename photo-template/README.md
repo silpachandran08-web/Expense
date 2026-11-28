@@ -15,3 +15,7 @@ New Project → import this repo → set **Root Directory** to `photo-template` 
 
 ## Run locally
 `python3 -m http.server` in this folder, open http://localhost:8000.
+
+## Shakebot templates
+Built by `make_templates.py` (edit text there, re-run). Each template: background `file`, optional
+`overlay` PNG drawn on top, optional `filter`: `orange` (duotone), `bw`, `warm`.

@@ -1,3 +1,6 @@
 [
-  { "name": "Sample", "file": "sample.jpg", "rect": [90, 140, 621, 621] }
+  { "name": "Protein Decoded (orange)", "file": "protein-decoded.jpg", "overlay": "protein-decoded-overlay.png", "filter": "orange", "rect": [0, 0, 1080, 1350] },
+  { "name": "Black & White", "file": "mono.jpg", "overlay": "mono-overlay.png", "filter": "bw", "rect": [0, 0, 1080, 1350] },
+  { "name": "Built for the Grind (warm)", "file": "grind.jpg", "overlay": "grind-overlay.png", "filter": "warm", "rect": [0, 0, 1080, 1350] },
+  { "name": "Fuel the Game (poster)", "file": "fuel-the-game.jpg", "overlay": "fuel-the-game-overlay.png", "rect": [70, 320, 940, 900] }
 ]

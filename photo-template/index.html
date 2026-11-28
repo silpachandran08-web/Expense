@@ -48,7 +48,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const out = $('out'), ctx = out.getContext('2d');
-let templates = [], tplImg = null, photo = null, offset = { x: 0, y: 0 };
+let templates = [], tplImg = null, overlayImg = null, photo = null, offset = { x: 0, y: 0 };
 
 const loadImg = src => new Promise((ok, fail) => {
   const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src;
@@ -69,9 +69,16 @@ async function pickTemplate() {
   const t = templates[$('tpl').value];
   if (!t) return;
   tplImg = await loadImg(t.src || 'templates/' + t.file);
+  overlayImg = t.overlay ? await loadImg('templates/' + t.overlay) : null;
   offset = { x: 0, y: 0 };
   draw();
 }
+
+const FILTERS = {
+  bw: 'grayscale(1) contrast(1.25)',
+  orange: 'grayscale(1) contrast(1.3) brightness(1.15)',
+  warm: 'sepia(0.7) saturate(2.6) hue-rotate(-12deg) contrast(1.1)',
+};
 
 function draw() {
   if (!tplImg) return;
@@ -88,9 +95,17 @@ function draw() {
     offset.y = Math.min(Math.max(offset.y, (h - ph) / 2), (ph - h) / 2);
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.filter = FILTERS[t.filter] || 'none';
     ctx.drawImage(photo, x + (w - pw) / 2 + offset.x, y + (h - ph) / 2 + offset.y, pw, ph);
+    ctx.filter = 'none';
+    if (t.filter === 'orange') {  // grey photo x orange = orange duotone
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = '#ff5a1f'; ctx.fillRect(x, y, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.restore();
   }
+  if (overlayImg) ctx.drawImage(overlayImg, 0, 0);
   $('dl').disabled = !photo;
 }
 
