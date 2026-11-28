@@ -19,3 +19,8 @@ New Project → import this repo → set **Root Directory** to `photo-template` 
 ## Shakebot templates
 Built by `make_templates.py` (edit text there, re-run). Each template: background `file`, optional
 `overlay` PNG drawn on top, optional `filter`: `orange` (duotone), `bw`, `warm`.
+
+## Password
+`middleware.js` asks for a password on every page and image (browser login box, any username).
+Set it in Vercel → Project → Settings → Environment Variables: `SITE_PASSWORD` = your password, then redeploy.
+Without that variable nobody can get in.
